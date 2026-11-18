@@ -9,7 +9,7 @@ from .guardrails import GuardrailReport, GuardrailViolation, check_explanation
 from .retriever import RetrievalResult
 
 
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
 FORMAT_FAILURE_REASON = "Gemini response did not contain a valid explanation"
 GUARDRAIL_FAILURE_REASON = "Gemini explanation failed grounding check"
 
