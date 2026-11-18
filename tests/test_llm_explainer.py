@@ -1,17 +1,25 @@
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
 
 from src.data_loader import TrackRecord
-from src.guardrails import GuardrailViolation
+from src.explainer import explain_recommendation
+from src.guardrails import find_unsupported_terms
 import src.llm_explainer as llm_explainer
 from src.llm_explainer import (
     build_gemini_prompt,
     explain_with_gemini,
     parse_gemini_explanation,
 )
-from src.retriever import RetrievalResult
+from src.main import DEFAULT_REAL_DATASET_PATH, load_demo_records, make_demo_query
+from src.retriever import RetrievalResult, retrieve_tracks
+
+
+LISTENING_HISTORY_CLAIM = (
+    "It's a pop track, so it should sound a lot like the songs you usually listen to."
+)
 
 
 @pytest.fixture
@@ -141,37 +149,107 @@ def test_explain_with_gemini_falls_back_on_unsupported_claim_without_blocked_wor
     monkeypatch: pytest.MonkeyPatch,
     retrieval_result: RetrievalResult,
 ):
+    genai = pytest.importorskip("google.genai")
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    raw_response = json.dumps({"explanation": LISTENING_HISTORY_CLAIM})
     monkeypatch.setattr(
         llm_explainer,
         "_generate_gemini_response_text",
-        lambda result, model: (
-            '{"explanation": "It is pop, so it sounds like what you usually play."}'
-        ),
-    )
-    monkeypatch.setattr(
-        llm_explainer,
-        "call_judge",
-        lambda *args: [
-            GuardrailViolation(
-                code="unsupported_claim",
-                message="No listening history was provided.",
-                severity="error",
-            )
-        ],
+        lambda result, model: raw_response,
     )
 
+    class FakeJudgeClient:
+        def __init__(self, **kwargs):
+            self.models = self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def generate_content(self, *, contents, **kwargs):
+            payload = json.loads(contents)
+            assert payload["explanation"] == LISTENING_HISTORY_CLAIM
+            assert payload["evidence"] == retrieval_result.evidence
+            claims = [
+                {
+                    "claim": "This is a pop track.",
+                    "status": "supported",
+                    "reason": "The track genre is pop.",
+                },
+                {
+                    "claim": "It sounds like songs the user usually listens to.",
+                    "status": "unsupported",
+                    "reason": "No listening history was provided.",
+                },
+            ]
+            return SimpleNamespace(text=json.dumps({"claims": claims}))
+
+    monkeypatch.setattr(genai, "Client", FakeJudgeClient)
     result = explain_with_gemini(retrieval_result)
 
+    assert find_unsupported_terms(LISTENING_HISTORY_CLAIM) == []
     assert result.used_llm is False
-    assert result.raw_response is not None
+    assert result.raw_response == raw_response
     assert result.fallback_reason == "Gemini explanation failed grounding check"
     assert result.guardrail_report is not None
     assert result.guardrail_report.passed is False
     assert result.guardrail_report.unsupported_terms == []
-    assert result.guardrail_report.violations[0].code == "unsupported_claim"
-    assert result.explanation.track_name == "Strong Match"
-    assert "Strong Match by Test Artist" in result.explanation.explanation
+    violation, = result.guardrail_report.violations
+    assert violation.code == "unsupported_claim"
+    assert "No listening history was provided." in violation.message
+    assert result.explanation == explain_recommendation(retrieval_result)
+
+
+@pytest.fixture
+def live_gemini_result():
+    if os.getenv("RUN_LIVE_GEMINI_TESTS") != "1":
+        pytest.skip("set RUN_LIVE_GEMINI_TESTS=1 to make live Gemini requests")
+    if not (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")):
+        pytest.skip("live Gemini tests require GEMINI_API_KEY or GOOGLE_API_KEY")
+    records = load_demo_records(csv_path=DEFAULT_REAL_DATASET_PATH, limit=None)
+    return retrieve_tracks(query=make_demo_query(), records=records, k=1)[0]
+
+
+def test_live_gemini_judge_rejects_listening_history_claim(
+    monkeypatch, live_gemini_result
+):
+    # Inject only the generator output. The production judge makes a real API call.
+    raw_response = json.dumps({"explanation": LISTENING_HISTORY_CLAIM})
+    monkeypatch.setattr(
+        llm_explainer,
+        "_generate_gemini_response_text",
+        lambda result, model: raw_response,
+    )
+    result = explain_with_gemini(live_gemini_result)
+
+    print("Handwritten hard case:", LISTENING_HISTORY_CLAIM)
+    print("Fallback reason:", result.fallback_reason)
+    print("Final explanation:", result.explanation.explanation)
+    assert result.guardrail_report is not None, result.fallback_reason
+    findings = result.guardrail_report.violations
+    for finding in findings:
+        print("Live judge finding:", finding.message)
+    assert any(finding.code == "unsupported_claim" for finding in findings)
+    assert result.fallback_reason == "Gemini explanation failed grounding check"
+    assert not result.used_llm
+    assert result.explanation == explain_recommendation(live_gemini_result)
+
+
+def test_live_gemini_generation_and_review(live_gemini_result):
+    result = explain_with_gemini(live_gemini_result)
+
+    print("Retrieved evidence:", live_gemini_result.evidence)
+    print("Live Gemini raw response:", result.raw_response)
+    print("Used Gemini explanation:", result.used_llm)
+    print("Fallback reason:", result.fallback_reason)
+    print("Final explanation:", result.explanation.explanation)
+    assert result.guardrail_report is not None, result.fallback_reason
+    for finding in result.guardrail_report.violations:
+        print("Live judge finding:", finding.message)
+    if not result.used_llm:
+        assert result.explanation == explain_recommendation(live_gemini_result)
 
 
 @pytest.mark.parametrize("reply", ["not JSON", '{"claims": []}', None])
