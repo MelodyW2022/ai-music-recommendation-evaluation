@@ -126,20 +126,129 @@ The live Gemini generator returned:
 
 The live judge accepted the explanation, and the application displayed it as written. This is one example of an accepted output. Estimating the rate of unsupported claims under the normal prompt requires reviewing more outputs against the evidence.
 
-### Six profiles with the normal prompt
+### Six normal-prompt candidates before the judge update
 
-A follow-up run used six different preference profiles and retrieved six different tracks. The judge accepted two candidates and rejected four. The following observations come from comparing each candidate with its retrieval evidence. [Raw responses and judge findings](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44422281225/job/135218030635)
+This is the baseline from the original live run. Each case has the unedited generator text, the original judge decision and any rejection reasons, and a separate evidence review. The case labels were assigned after reviewing the outputs. “Boundary” here concerns the scope or wording of the claim. The rubric did not set a numeric closeness threshold. [Original run and displayed outputs](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44422281225/job/135218030635)
 
-| Track | Judge decision | Evidence review |
-| --- | --- | --- |
-| Ishqam | Rejected | The pop genre and track tags are supported. The output treats the requested genre as a favorite and suggests the user already enjoys the electronic sound. |
-| 2002 - Acoustic | Accepted | The genre matches. Energy rounds to `0.30` against a target of `0.30`, and acousticness is `0.84` against `0.85`. |
-| Hot in It | Accepted | The dance genre and track tags are supported. The phrase “electronic sound you enjoy” implies a preference the query does not establish. |
-| Santa Cruzin' | Rejected | Jazz matches, but energy `0.64` vs. `0.24` and valence `0.60` vs. `0.36` undercut the claim of a close match. |
-| arms | Rejected | The rock genre and track tags are supported. “Favorite” and “vibe you enjoy” go beyond what the current request establishes. |
-| Not What I Had In Mind | Rejected | The track is labeled honky-tonk, while the user requested baroque-pop. The candidate correctly identifies the track genre and limits its match to energy (`0.39` vs. `0.36`) and acousticness (`0.54` vs. `0.55`). The judge's rejection cited missing listening history even though the candidate makes no such claim. |
+#### Ishqam
 
-This sample shows both useful rejections and inconsistent judgments about the user's current preferences. The fallback now describes the comparison and presents the evidence without asserting that all audio features closely match.
+**Case type:** Hard case — unsupported long-term taste
+
+**Gemini candidate**
+
+> Ishqam is a great match for your preferences because it aligns with your favorite pop genre and delivers the high-energy, danceable electronic sound you enjoy.
+
+**Retrieved evidence**
+
+```text
+["genre matches preferred genre 'pop' (+2.00)", 'energy closeness: 0.84 vs target 0.80 (+1.92)', 'acousticness closeness: 0.13 vs target 0.20 (+0.93)', 'valence closeness: 0.61 vs target 0.85 (+0.76)', 'danceability closeness: 0.73 vs target 0.80 (+0.70)', 'derived vibe tags for explanation: high_energy, electronic, danceable']
+```
+
+**Original judge:** Rejected. The application showed the fallback.
+
+> Ishqam is a great match for your preferences. — The evidence shows a retrieval score and attribute closeness, but does not confirm the user's specific preferences or history.
+>
+> It delivers the high-energy, danceable electronic sound you enjoy. — While the track has these vibe tags, there is no evidence provided that the user enjoys these specific sounds.
+
+**Evidence review:** Reject. The pop match and track tags are supported. “Favorite” and “sound you enjoy” imply a standing taste that the current request does not establish.
+
+#### 2002 - Acoustic
+
+**Case type:** Positive control — clear pass
+
+**Gemini candidate**
+
+> This track is a great match because it aligns with your preference for acoustic music and closely mirrors your target energy and acousticness levels.
+
+**Retrieved evidence**
+
+```text
+["genre matches preferred genre 'acoustic' (+2.00)", 'energy closeness: 0.30 vs target 0.30 (+1.99)', 'acousticness closeness: 0.84 vs target 0.85 (+0.99)', 'valence closeness: 0.61 vs target 0.50 (+0.89)', 'danceability closeness: 0.59 vs target 0.55 (+0.72)', 'derived vibe tags for explanation: low_energy, acoustic, fast_tempo']
+```
+
+**Original judge:** Accepted. The application showed the candidate.
+
+**Evidence review:** Accept. The acoustic genre matches. Energy rounds to 0.30 against 0.30, and acousticness is 0.84 against 0.85.
+
+#### Hot in It
+
+**Case type:** Borderline wording — subtle unsupported inference
+
+**Gemini candidate**
+
+> Tiësto and Charli XCX's 'Hot in It' is a great match because it aligns with your preferred dance genre and delivers the high-energy, positive, and danceable electronic sound you enjoy.
+
+**Retrieved evidence**
+
+```text
+["genre matches preferred genre 'dance' (+2.00)", 'energy closeness: 0.84 vs target 0.90 (+1.88)', 'acousticness closeness: 0.00 vs target 0.10 (+0.90)', 'valence closeness: 0.72 vs target 0.75 (+0.97)', 'danceability closeness: 0.75 vs target 0.90 (+0.64)', 'derived vibe tags for explanation: high_energy, positive, electronic, danceable']
+```
+
+**Original judge:** Accepted. The application showed the candidate.
+
+**Evidence review:** Reject. The dance genre and track tags are supported, but “electronic sound you enjoy” attributes a preference beyond the current request. The original judge let this through.
+
+#### Santa Cruzin'
+
+**Case type:** Hard case — overstated numeric match
+
+**Gemini candidate**
+
+> This track is a strong match because it aligns with your preferred jazz genre and features a moderate musical profile that closely mirrors your target energy and mood preferences.
+
+**Retrieved evidence**
+
+```text
+["genre matches preferred genre 'jazz' (+2.00)", 'energy closeness: 0.64 vs target 0.24 (+1.20)', 'acousticness closeness: 0.47 vs target 0.82 (+0.65)', 'valence closeness: 0.60 vs target 0.36 (+0.76)', 'danceability closeness: 0.69 vs target 0.31 (+0.47)', 'derived vibe tags for explanation: moderate_profile']
+```
+
+**Original judge:** Rejected. The application showed the fallback.
+
+> The track closely mirrors your target energy and mood preferences. — The evidence shows significant numerical differences between the track's attributes (energy 0.64, valence 0.60) and the target values (energy 0.24, valence 0.36), which contradicts the claim of a 'close' mirror.
+
+**Evidence review:** Reject. Jazz matches, but energy is 0.64 vs. 0.24 and valence is 0.60 vs. 0.36. The candidate calls both close.
+
+#### arms
+
+**Case type:** Hard case — unsupported long-term taste
+
+**Gemini candidate**
+
+> This track is a strong match for your preferences because it aligns with your favorite rock genre and features the high-energy, fast-tempo, and darker electronic vibe you enjoy.
+
+**Retrieved evidence**
+
+```text
+["genre matches preferred genre 'rock' (+2.00)", 'energy closeness: 0.76 vs target 0.85 (+1.81)', 'acousticness closeness: 0.11 vs target 0.10 (+0.99)', 'valence closeness: 0.25 vs target 0.26 (+0.99)', 'danceability closeness: 0.46 vs target 0.36 (+0.67)', 'derived vibe tags for explanation: high_energy, darker, electronic, fast_tempo']
+```
+
+**Original judge:** Rejected. The application showed the fallback.
+
+> This track is a strong match for your preferences. — The evidence provides a retrieval score, but there is no data regarding the user's specific preferences to confirm this is a 'strong match'.
+>
+> It features the high-energy, fast-tempo, and darker electronic vibe you enjoy. — While the track has these derived vibe tags, there is no evidence provided that the user enjoys these specific attributes.
+
+**Evidence review:** Reject. Rock and the track tags are supported. The current request does not establish that rock is a favorite or that the user enjoys this particular vibe.
+
+#### Not What I Had In Mind
+
+**Case type:** Boundary case — valid comparison despite a genre mismatch
+
+**Gemini candidate**
+
+> This honky-tonk track is recommended because its low-energy, positive, and danceable vibe aligns closely with your preferred acoustic and energy levels.
+
+**Retrieved evidence**
+
+```text
+["genre differs from preferred genre: 'honky-tonk' vs 'baroque-pop' (+0.00)", 'energy closeness: 0.39 vs target 0.36 (+1.94)', 'acousticness closeness: 0.54 vs target 0.55 (+0.99)', 'valence closeness: 0.76 vs target 0.68 (+0.92)', 'danceability closeness: 0.73 vs target 0.63 (+0.67)', 'derived vibe tags for explanation: low_energy, positive, danceable']
+```
+
+**Original judge:** Rejected. The application showed the fallback.
+
+> The track is recommended because its vibe aligns with your preferences. — While the evidence shows closeness scores for energy and acousticness, there is no evidence provided regarding the user's actual listening history or specific preferences.
+
+**Evidence review:** Accept on grounding. The candidate calls the track honky-tonk and makes a comparison scoped to energy (0.39 vs. 0.36) and acousticness (0.54 vs. 0.55). Its track tags are supported. It could be clearer about the baroque-pop mismatch. The original judge cited missing listening history, which this explanation does not rely on.
 
 ## Sample Outputs
 
