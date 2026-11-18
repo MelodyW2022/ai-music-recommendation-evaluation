@@ -44,7 +44,7 @@ The dataset does not include lyrics, vocals, user listening history, reviews, or
 Current verified automated test result:
 
 ```text
-46 passed, 2 skipped
+46 passed, 3 skipped
 ```
 
 The evaluator runs three predefined retrieval cases and reports:
@@ -70,7 +70,7 @@ The offline demo replays simulated generation and judge responses to show how th
 Guardrails check for:
 
 - empty explanations
-- claims a separate Gemini judge identifies as unsupported or contradicted by the evidence
+- claims a separate Gemini judge identifies as unsupported or contradicted by the evidence, including claims about habitual taste when the profile only provides request settings
 - missing retrieval evidence
 - incomplete evidence fields
 
