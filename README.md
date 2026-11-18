@@ -109,8 +109,16 @@ python3 -m pytest -q
 Current verified result:
 
 ```text
-46 passed
+46 passed, 2 skipped
 ```
+
+With a Gemini API key set, run the two live checks and print the responses:
+
+```bash
+RUN_LIVE_GEMINI_TESTS=1 python3 -m pytest -q -s -rs tests/test_llm_explainer.py -k live_gemini
+```
+
+One test sends a handwritten claim about the user's listening history through the real judge and requires a rejection and template fallback. The other uses the normal prompt to generate and review an explanation, printing the raw output, judge findings, and final text. A normal generation can be grounded, so this second test does not require Gemini to invent an unsupported claim.
 
 ## Sample Outputs
 
