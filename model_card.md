@@ -44,7 +44,7 @@ The dataset does not include lyrics, vocals, user listening history, reviews, or
 Current verified automated test result:
 
 ```text
-45 passed, 2 skipped
+46 passed, 2 skipped
 ```
 
 The evaluator runs three predefined retrieval cases and reports:
