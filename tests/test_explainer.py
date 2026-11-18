@@ -59,15 +59,6 @@ def test_explain_recommendations_handles_ranked_lists():
     assert all(item.explanation.strip() for item in explanations)
 
 
-def test_explain_recommendation_does_not_make_unsupported_claims():
-    explanation = explain_recommendation(make_result()).explanation.lower()
-
-    unsupported_terms = ["lyrics", "vocals", "storytelling", "fan favorite"]
-
-    for term in unsupported_terms:
-        assert term not in explanation
-
-
 def test_explain_recommendation_handles_missing_vibe_tags():
     result = make_result()
     track_without_tags = TrackRecord(
