@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.data_loader import TrackRecord
+from src.evaluator import PREDEFINED_CASES, EvaluationCase
 from src.explainer import explain_recommendation
 import src.llm_explainer as llm_explainer
 from src.llm_explainer import (
@@ -13,13 +14,21 @@ from src.llm_explainer import (
     parse_gemini_explanation,
 )
 from src.main import DEFAULT_REAL_DATASET_PATH, load_demo_records, make_demo_query
-from src.retriever import RetrievalResult, retrieve_tracks
+from src.retriever import RetrievalQuery, RetrievalResult, retrieve_tracks
 
 
 LISTENING_HISTORY_CLAIM = (
     "It's a pop track, so it should sound a lot like the songs you usually listen to."
 )
 
+LIVE_GENERATION_CASES = [
+    *PREDEFINED_CASES,
+    EvaluationCase("low_energy_jazz", RetrievalQuery("jazz", 0.24, 0.82, 0.36, 0.31)),
+    EvaluationCase("high_energy_rock", RetrievalQuery("rock", 0.85, 0.10, 0.26, 0.36)),
+    EvaluationCase(
+        "genre_unavailable", RetrievalQuery("baroque-pop", 0.36, 0.55, 0.68, 0.63)
+    ),
+]
 
 @pytest.fixture
 def retrieval_result() -> RetrievalResult:
@@ -196,19 +205,19 @@ def test_explain_with_gemini_falls_back_on_unsupported_listening_history_claim(
     assert result.explanation == explain_recommendation(retrieval_result)
 
 
-@pytest.fixture
-def live_gemini_result():
+@pytest.fixture(scope="module")
+def live_gemini_records():
     if os.getenv("RUN_LIVE_GEMINI_TESTS") != "1":
         pytest.skip("set RUN_LIVE_GEMINI_TESTS=1 to make live Gemini requests")
     if not (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")):
         pytest.skip("live Gemini tests require GEMINI_API_KEY or GOOGLE_API_KEY")
-    records = load_demo_records(csv_path=DEFAULT_REAL_DATASET_PATH, limit=None)
-    return retrieve_tracks(query=make_demo_query(), records=records, k=1)[0]
+    return load_demo_records(csv_path=DEFAULT_REAL_DATASET_PATH, limit=None)
 
 
 def test_live_gemini_judge_rejects_listening_history_claim(
-    monkeypatch, live_gemini_result
+    monkeypatch, live_gemini_records
 ):
+    live_gemini_result = retrieve_tracks(make_demo_query(), live_gemini_records, k=1)[0]
     # Inject only the generator output. The production judge makes a real API call.
     raw_response = json.dumps({"explanation": LISTENING_HISTORY_CLAIM})
     monkeypatch.setattr(
@@ -231,19 +240,28 @@ def test_live_gemini_judge_rejects_listening_history_claim(
     assert result.explanation == explain_recommendation(live_gemini_result)
 
 
-def test_live_gemini_generation_and_review(live_gemini_result):
-    result = explain_with_gemini(live_gemini_result)
+def test_live_gemini_generation_and_review(live_gemini_records):
+    failures = []
+    for case in LIVE_GENERATION_CASES:
+        retrieved = retrieve_tracks(case.query, live_gemini_records, k=1)[0]
+        result = explain_with_gemini(retrieved)
+        report = result.guardrail_report
 
-    print("Retrieved evidence:", live_gemini_result.evidence)
-    print("Live Gemini raw response:", result.raw_response)
-    print("Used Gemini explanation:", result.used_llm)
-    print("Fallback reason:", result.fallback_reason)
-    print("Final explanation:", result.explanation.explanation)
-    assert result.guardrail_report is not None, result.fallback_reason
-    for finding in result.guardrail_report.violations:
-        print("Live judge finding:", finding.message)
-    if not result.used_llm:
-        assert result.explanation == explain_recommendation(live_gemini_result)
+        print(f"Live case: {case.name}, track: {retrieved.track.track_name}")
+        print("Retrieved evidence:", retrieved.evidence)
+        print("Live Gemini raw response:", result.raw_response)
+        print("Used Gemini explanation:", result.used_llm)
+        print("Fallback reason:", result.fallback_reason)
+        print("Final explanation:", result.explanation.explanation)
+        if report is None:
+            failures.append(f"{case.name}: {result.fallback_reason}")
+            continue
+        for finding in report.violations:
+            print("Live judge finding:", finding.message)
+        if not result.used_llm and result.explanation != explain_recommendation(retrieved):
+            failures.append(f"{case.name}: expected the deterministic fallback")
+
+    assert not failures, "\n".join(failures)
 
 
 @pytest.mark.parametrize("reply", ["not JSON", '{"claims": []}', None])
