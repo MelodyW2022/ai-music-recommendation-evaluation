@@ -135,7 +135,11 @@ def evaluate_records(
                 guardrail_report=check_explanation(explanation),
             )
 
-        final_report = check_explanation(llm_result.explanation)
+        final_report = (
+            llm_result.guardrail_report
+            if llm_result.used_llm and llm_result.guardrail_report is not None
+            else check_explanation(llm_result.explanation)
+        )
         items.append(
             EvaluationItem(
                 case_name=case.name,
@@ -215,7 +219,11 @@ def summarize_items(items: List[EvaluationItem]) -> EvaluationSummary:
     unsupported_count = sum(
         1
         for item in items
-        if item.raw_guardrail_report and item.raw_guardrail_report.unsupported_terms
+        if item.raw_guardrail_report
+        and any(
+            violation.code in ("unsupported_claim", "contradicted_claim")
+            for violation in item.raw_guardrail_report.violations
+        )
     )
     fallback_count = sum(1 for item in items if item.fallback_reason)
     format_failure_count = sum(
