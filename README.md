@@ -23,7 +23,7 @@ Video walkthrough: https://youtu.be/QBHgzb6XJwI
 
 ![System Architecture](assets/system_architecture.svg)
 
-The system does not ask Gemini to choose songs. Retrieval ranks tracks first using genre and audio-feature similarity. Gemini is only allowed to rewrite explanations, and guardrails reject unsupported claims like lyrics, vocals, fan reactions, or chart status.
+Retrieval ranks tracks using genre and audio-feature similarity. In live mode, Gemini writes an explanation, then a separate Gemini request checks each claim against the same track metadata and retrieval evidence. A rejected claim, invalid review, or unavailable judge triggers the deterministic explanation. The offline simulated cases continue to use the keyword guardrail.
 
 ## Reliability Evidence
 
@@ -88,6 +88,12 @@ Show one retrieval and guardrail trace:
 python3 -m src.main trace
 ```
 
+To generate and judge a live Gemini explanation with an API key:
+
+```bash
+python3 -m src.main trace --use-gemini
+```
+
 Run reliability evaluation:
 
 ```bash
@@ -103,7 +109,7 @@ python3 -m pytest -q
 Current verified result:
 
 ```text
-42 passed
+46 passed
 ```
 
 ## Sample Outputs
@@ -148,12 +154,12 @@ The reliability layer checks that explanations are grounded in retrieval evidenc
 
 Measured metrics:
 
-- `unsupported_claim_rate`: how often raw LLM-style output contains unsupported terms.
+- `unsupported_claim_rate`: the share of evaluated responses flagged by the keyword guardrail in simulated mode or flagged for unsupported or contradicted claims by the judge in live mode.
 - `fallback_rate`: how often the system replaces unsafe or malformed output.
 - `format_failure_rate`: how often raw output cannot be parsed as valid JSON.
-- `global_evidence_coverage`: how much required retrieval evidence is present in final safe outputs.
+- `global_evidence_coverage`: the share of expected markers present in the retrieval evidence attached to the final explanations.
 
-The evaluator intentionally includes one safe response, one unsupported-claim response, and one malformed response. This makes the guardrail behavior visible without requiring a live Gemini call during grading.
+By default, the evaluator runs one safe simulated response, one unsupported-claim response, and one malformed response. To run the same retrieval cases with live generation and judging, use `python3 -m src.main evaluate --use-gemini --no-simulated-failures`. These metrics report the checker's decisions. Assessing whether the judge misses claims or rejects supported explanations requires a separately labeled sample.
 
 ## Stretch Features
 
