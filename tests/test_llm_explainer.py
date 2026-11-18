@@ -6,7 +6,6 @@ import pytest
 
 from src.data_loader import TrackRecord
 from src.explainer import explain_recommendation
-from src.guardrails import find_unsupported_terms
 import src.llm_explainer as llm_explainer
 from src.llm_explainer import (
     build_gemini_prompt,
@@ -64,9 +63,7 @@ def test_build_gemini_prompt_uses_retrieved_fields_and_guardrails(
     assert "retrieval_score=6.50" in prompt
     assert "derived_vibe_tags=high_energy, positive, danceable" in prompt
     assert "energy closeness: 0.82 vs target 0.80 (+1.96)" in prompt
-    assert "lyrics" in prompt
-    assert "vocals" in prompt
-    assert "storytelling" in prompt
+    assert "make only claims these inputs support" in prompt
 
 
 def test_parse_gemini_explanation_accepts_plain_json():
@@ -137,7 +134,6 @@ def test_explain_with_gemini_returns_safe_guardrail_checked_output(
     assert result.fallback_reason is None
     assert result.guardrail_report is not None
     assert result.guardrail_report.passed is True
-    assert result.guardrail_report.unsupported_terms == []
     assert result.explanation.explanation == (
         "Strong Match matches your pop preference. "
         "The evidence does not describe its vocals."
@@ -145,7 +141,7 @@ def test_explain_with_gemini_returns_safe_guardrail_checked_output(
     assert result.explanation.evidence == retrieval_result.evidence
 
 
-def test_explain_with_gemini_falls_back_on_unsupported_claim_without_blocked_words(
+def test_explain_with_gemini_falls_back_on_unsupported_listening_history_claim(
     monkeypatch: pytest.MonkeyPatch,
     retrieval_result: RetrievalResult,
 ):
@@ -189,13 +185,11 @@ def test_explain_with_gemini_falls_back_on_unsupported_claim_without_blocked_wor
     monkeypatch.setattr(genai, "Client", FakeJudgeClient)
     result = explain_with_gemini(retrieval_result)
 
-    assert find_unsupported_terms(LISTENING_HISTORY_CLAIM) == []
     assert result.used_llm is False
     assert result.raw_response == raw_response
     assert result.fallback_reason == "Gemini explanation failed grounding check"
     assert result.guardrail_report is not None
     assert result.guardrail_report.passed is False
-    assert result.guardrail_report.unsupported_terms == []
     violation, = result.guardrail_report.violations
     assert violation.code == "unsupported_claim"
     assert "No listening history was provided." in violation.message
@@ -265,7 +259,7 @@ def test_explain_with_gemini_falls_back_if_judge_cannot_return_a_review(
     def review(*args):
         if reply is None:
             raise TimeoutError("judge timed out")
-        return llm_explainer._parse_judge_violations(reply)
+        return llm_explainer.parse_judge_violations(reply)
 
     monkeypatch.setattr(llm_explainer, "call_judge", review)
     result = explain_with_gemini(retrieval_result)
