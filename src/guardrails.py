@@ -56,13 +56,12 @@ class GuardrailReport:
 
 def check_explanation(
     explanation: RecommendationExplanation,
+    *,
+    claim_violations: Optional[List[GuardrailViolation]] = None,
 ) -> GuardrailReport:
     """
-    Check whether a generated recommendation explanation is grounded.
-
-    This guardrail is deterministic and offline. It does not judge whether the
-    recommendation is good; it checks whether the explanation stays within the
-    evidence available from retrieval.
+    Check the explanation and retrieval evidence. When a live judge has
+    reviewed the claims, use its findings instead of the offline word list.
     """
     violations: List[GuardrailViolation] = []
 
@@ -75,7 +74,11 @@ def check_explanation(
             )
         )
 
-    unsupported_terms = find_unsupported_terms(explanation.explanation)
+    unsupported_terms = []
+    if claim_violations is None:
+        unsupported_terms = find_unsupported_terms(explanation.explanation)
+    else:
+        violations.extend(claim_violations)
     if unsupported_terms:
         violations.append(
             GuardrailViolation(
