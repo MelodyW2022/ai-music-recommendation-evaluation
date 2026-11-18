@@ -13,7 +13,11 @@ from pathlib import Path
 from typing import List, Optional
 
 from .data_loader import TrackRecord, load_track_records
-from .evaluator import evaluate_records, explain_from_raw_response
+from .evaluator import (
+    SIMULATED_UNSUPPORTED_CASE,
+    evaluate_records,
+    explain_simulated_response,
+)
 from .explainer import explain_recommendations
 from .llm_explainer import explain_with_gemini
 from .retriever import RetrievalQuery, retrieve_tracks
@@ -151,20 +155,13 @@ def run_trace(
         llm_result = explain_with_gemini(result)
         print("Gemini mode: live call if API key/package are available")
     else:
-        raw_response = (
-            '{"explanation": "This track has emotional lyrics and rich vocals."}'
-        )
-        llm_result = explain_from_raw_response(result, raw_response)
-        print("Gemini mode: simulated unsafe raw response for reliability demo")
+        llm_result = explain_simulated_response(result, *SIMULATED_UNSUPPORTED_CASE)
+        print("Gemini mode: simulated explanation and judge response")
 
     print(f"Raw response: {llm_result.raw_response}")
     print(f"Used LLM output: {llm_result.used_llm}")
     print(f"Fallback reason: {llm_result.fallback_reason or 'none'}")
     if llm_result.guardrail_report:
-        print(
-            "Guardrail unsupported terms: "
-            f"{llm_result.guardrail_report.unsupported_terms}"
-        )
         for violation in llm_result.guardrail_report.violations:
             print(f"Guardrail finding: {violation.message}")
     print(f"Final safe explanation: {llm_result.explanation.explanation}")
@@ -201,7 +198,8 @@ def run_evaluate(
         print(f"  used_llm={item.used_llm}")
         print(f"  fallback_reason={item.fallback_reason or 'none'}")
         if item.raw_guardrail_report:
-            print(f"  unsupported_terms={item.raw_guardrail_report.unsupported_terms}")
+            for violation in item.raw_guardrail_report.violations:
+                print(f"  guardrail_finding={violation.message}")
         print(f"  final_passed={item.final_guardrail_report.passed}")
 
 
