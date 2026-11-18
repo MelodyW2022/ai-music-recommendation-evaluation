@@ -37,14 +37,14 @@ The original project was explainable but small. This final version keeps that ba
 
 The real-data path uses a deterministic 500-row sample from the Hugging Face Spotify Tracks Dataset. The sample includes track name, artists, album name, genre, popularity, danceability, energy, acousticness, valence, and tempo.
 
-The dataset does not include lyrics, vocals, user listening history, reviews, or cultural context. For that reason, explanations are not allowed to claim anything about lyrics, vocals, fan popularity, live performance, or awards.
+The dataset does not include lyrics, vocals, user listening history, reviews, or cultural context. Each claim must be supported by the metadata or retrieval evidence supplied for the current request.
 
 ## Reliability Evaluation
 
 Current verified automated test result:
 
 ```text
-42 passed
+45 passed, 2 skipped
 ```
 
 The evaluator runs three predefined retrieval cases and reports:
@@ -63,14 +63,14 @@ Format failure rate: 0.33
 Global evidence coverage: 1.00
 ```
 
-This shows that unsafe raw LLM-style output is detected and replaced, while final explanations preserve evidence coverage.
+The offline demo replays simulated generation and judge responses to show how the pipeline handles rejection and invalid JSON.
 
 ## Guardrails
 
 Guardrails check for:
 
 - empty explanations
-- unsupported claims such as lyrics, vocals, fan favorite, chart-topping, or live performance
+- claims a separate Gemini judge identifies as unsupported or contradicted by the evidence
 - missing retrieval evidence
 - incomplete evidence fields
 
