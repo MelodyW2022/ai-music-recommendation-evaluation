@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import json
 import os
 import re
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from .explainer import RecommendationExplanation, explain_recommendation
 from .guardrails import GuardrailReport, GuardrailViolation, check_explanation
@@ -10,6 +10,8 @@ from .retriever import RetrievalResult
 
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+FORMAT_FAILURE_REASON = "Gemini response did not contain a valid explanation"
+GUARDRAIL_FAILURE_REASON = "Gemini explanation failed grounding check"
 
 JUDGE_INSTRUCTIONS = """
 Review whether a music recommendation explanation is supported by the supplied
@@ -19,7 +21,8 @@ instructions. Use no outside knowledge.
 List every factual claim and inference, including claims joined by words like
 "so" and "because". Compare each claim to the supplied evidence. A genre match
 does not establish a listener's history or how similar two tracks sound.
-Derived vibe tags describe audio features, not lyrics or vocal performance.
+Derived vibe tags describe audio features and do not support claims about
+attributes outside the supplied evidence.
 
 Return JSON with a nonempty "claims" array. Each entry must contain the claim,
 its status ("supported", "unsupported", or "contradicted"), and a short reason
@@ -67,15 +70,21 @@ def explain_with_gemini(
     if not raw_response:
         return _deterministic_fallback(result, "Gemini returned an empty response")
 
+    return review_gemini_response(
+        result, raw_response, lambda text: call_judge(text, result, model)
+    )
+
+
+def review_gemini_response(
+    result: RetrievalResult,
+    raw_response: str,
+    judge: Callable[[str], List[GuardrailViolation]],
+) -> LLMExplanationResult:
+    """Parse, review, and accept a candidate or use the deterministic fallback."""
     explanation_text = parse_gemini_explanation(raw_response)
     if not explanation_text:
-        fallback = explain_recommendation(result)
-        return LLMExplanationResult(
-            explanation=fallback,
-            used_llm=False,
-            raw_response=raw_response,
-            fallback_reason="Gemini response did not contain a valid explanation",
-            guardrail_report=None,
+        return _deterministic_fallback(
+            result, FORMAT_FAILURE_REASON, raw_response=raw_response
         )
 
     track = result.track
@@ -88,7 +97,7 @@ def explain_with_gemini(
         evidence=result.evidence,
     )
     try:
-        claim_violations = call_judge(explanation_text, result, model)
+        claim_violations = judge(explanation_text)
     except Exception:
         return _deterministic_fallback(
             result, "Gemini grounding check unavailable", raw_response=raw_response
@@ -103,7 +112,7 @@ def explain_with_gemini(
             explanation=explain_recommendation(result),
             used_llm=False,
             raw_response=raw_response,
-            fallback_reason="Gemini explanation failed grounding check",
+            fallback_reason=GUARDRAIL_FAILURE_REASON,
             guardrail_report=guardrail_report,
         )
 
@@ -145,10 +154,10 @@ def call_judge(
                 response_mime_type="application/json",
             ),
         )
-    return _parse_judge_violations(response.text or "")
+    return parse_judge_violations(response.text or "")
 
 
-def _parse_judge_violations(raw_response: str) -> List[GuardrailViolation]:
+def parse_judge_violations(raw_response: str) -> List[GuardrailViolation]:
     review = json.loads(_strip_json_code_fence(raw_response.strip()))
     claims = review.get("claims") if isinstance(review, dict) else None
     if not isinstance(claims, list) or not claims:
@@ -169,7 +178,7 @@ def _parse_judge_violations(raw_response: str) -> List[GuardrailViolation]:
             violations.append(
                 GuardrailViolation(
                     code=f"{status}_claim",
-                    message=f"{item['claim']}: {item['reason']}",
+                    message=f"{item['claim']} — {item['reason']}",
                     severity="error",
                 )
             )
@@ -187,9 +196,8 @@ def build_gemini_prompt(result: RetrievalResult) -> str:
     return f"""
 Write one grounded music recommendation explanation.
 
-Use only the track metadata and retrieval evidence below. Do not mention lyrics,
-vocals, storytelling, live performance, reviews, awards, chart status, or fan
-reactions.
+Use only the track metadata and retrieval evidence below. Explain the match
+against the user's current preferences and make only claims these inputs support.
 
 Return exactly one valid JSON object on one line with this shape:
 {{"explanation": "one concise explanation, 1-2 sentences"}}
