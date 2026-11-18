@@ -1,6 +1,10 @@
+import json
+from types import SimpleNamespace
+
 import pytest
 
 from src.data_loader import TrackRecord
+from src.guardrails import GuardrailViolation
 import src.llm_explainer as llm_explainer
 from src.llm_explainer import (
     build_gemini_prompt,
@@ -75,6 +79,7 @@ def test_parse_gemini_explanation_accepts_json_code_fence():
 
 def test_parse_gemini_explanation_rejects_malformed_output():
     assert parse_gemini_explanation("This is not JSON.") is None
+    assert parse_gemini_explanation("[]") is None
     assert parse_gemini_explanation('{"text": "missing explanation key"}') is None
     assert parse_gemini_explanation('{"explanation": "   "}') is None
 
@@ -106,11 +111,17 @@ def test_explain_with_gemini_returns_safe_guardrail_checked_output(
         llm_explainer,
         "_generate_gemini_response_text",
         lambda result, model: (
-            '{"explanation": "Strong Match by Test Artist matches the request '
-            'using retrieved genre and audio-feature evidence."}'
+            '{"explanation": "Strong Match matches your pop preference. '
+            'The evidence does not describe its vocals."}'
         ),
     )
 
+    def approve(explanation, result, model):
+        assert result is retrieval_result
+        assert "matches your pop preference" in explanation
+        return []
+
+    monkeypatch.setattr(llm_explainer, "call_judge", approve)
     result = explain_with_gemini(retrieval_result)
 
     assert result.used_llm is True
@@ -118,14 +129,15 @@ def test_explain_with_gemini_returns_safe_guardrail_checked_output(
     assert result.fallback_reason is None
     assert result.guardrail_report is not None
     assert result.guardrail_report.passed is True
+    assert result.guardrail_report.unsupported_terms == []
     assert result.explanation.explanation == (
-        "Strong Match by Test Artist matches the request using retrieved genre "
-        "and audio-feature evidence."
+        "Strong Match matches your pop preference. "
+        "The evidence does not describe its vocals."
     )
     assert result.explanation.evidence == retrieval_result.evidence
 
 
-def test_explain_with_gemini_falls_back_when_guardrails_fail(
+def test_explain_with_gemini_falls_back_on_unsupported_claim_without_blocked_words(
     monkeypatch: pytest.MonkeyPatch,
     retrieval_result: RetrievalResult,
 ):
@@ -134,17 +146,85 @@ def test_explain_with_gemini_falls_back_when_guardrails_fail(
         llm_explainer,
         "_generate_gemini_response_text",
         lambda result, model: (
-            '{"explanation": "Strong Match has emotional lyrics and rich vocals."}'
+            '{"explanation": "It is pop, so it sounds like what you usually play."}'
         ),
+    )
+    monkeypatch.setattr(
+        llm_explainer,
+        "call_judge",
+        lambda *args: [
+            GuardrailViolation(
+                code="unsupported_claim",
+                message="No listening history was provided.",
+                severity="error",
+            )
+        ],
     )
 
     result = explain_with_gemini(retrieval_result)
 
     assert result.used_llm is False
     assert result.raw_response is not None
-    assert result.fallback_reason == "Gemini explanation failed guardrails"
+    assert result.fallback_reason == "Gemini explanation failed grounding check"
     assert result.guardrail_report is not None
     assert result.guardrail_report.passed is False
-    assert result.guardrail_report.unsupported_terms == ["lyrics", "vocals"]
+    assert result.guardrail_report.unsupported_terms == []
+    assert result.guardrail_report.violations[0].code == "unsupported_claim"
     assert result.explanation.track_name == "Strong Match"
     assert "Strong Match by Test Artist" in result.explanation.explanation
+
+
+@pytest.mark.parametrize("reply", ["not JSON", '{"claims": []}', None])
+def test_explain_with_gemini_falls_back_if_judge_cannot_return_a_review(
+    monkeypatch, retrieval_result, reply
+):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    raw = '{"explanation": "This is pop."}'
+    monkeypatch.setattr(
+        llm_explainer, "_generate_gemini_response_text", lambda *args: raw
+    )
+
+    def review(*args):
+        if reply is None:
+            raise TimeoutError("judge timed out")
+        return llm_explainer._parse_judge_violations(reply)
+
+    monkeypatch.setattr(llm_explainer, "call_judge", review)
+    result = explain_with_gemini(retrieval_result)
+
+    assert result.used_llm is False
+    assert result.raw_response == raw
+    assert result.fallback_reason == "Gemini grounding check unavailable"
+    assert "Strong Match by Test Artist" in result.explanation.explanation
+
+
+def test_call_judge_sends_original_explanation_and_retrieval_evidence(
+    monkeypatch, retrieval_result
+):
+    genai = pytest.importorskip("google.genai")
+
+    class FakeClient:
+        def __init__(self, http_options):
+            assert http_options.timeout == 15000
+            self.models = self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def generate_content(self, *, model, contents, config):
+            assert model == "judge-model"
+            payload = json.loads(contents)
+            assert payload["explanation"] == "This is pop."
+            assert payload["track"]["genre"] == "pop"
+            assert payload["evidence"] == retrieval_result.evidence
+            assert "List every factual claim" in config.system_instruction
+            return SimpleNamespace(
+                text='{"claims": [{"claim": "This is pop.", '
+                '"status": "supported", "reason": "The track genre is pop."}]}'
+            )
+
+    monkeypatch.setattr(genai, "Client", FakeClient)
+    assert llm_explainer.call_judge("This is pop.", retrieval_result, "judge-model") == []
