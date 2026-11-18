@@ -1,0 +1,39 @@
+name: Live Gemini grounding tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  live-gemini:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'run-live-gemini' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'codex/gemini-grounding-judge')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run live Gemini tests
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RUN_LIVE_GEMINI_TESTS: '1'
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error::Configure the GEMINI_API_KEY repository secret first."
+            exit 1
+          fi
+          python -m pytest -q -s -rs tests/test_llm_explainer.py -k live_gemini
