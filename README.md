@@ -91,16 +91,20 @@ python3 -m pytest -q
 Current verified result:
 
 ```text
-46 passed, 2 skipped
+46 passed, 3 skipped
 ```
 
-With a Gemini API key set, run the two live checks and print the responses:
+With a Gemini API key set, run the live checks in separate batches and print the responses:
 
 ```bash
-RUN_LIVE_GEMINI_TESTS=1 python3 -m pytest -q -s -rs tests/test_llm_explainer.py -k live_gemini
+RUN_LIVE_GEMINI_TESTS=1 python3 -m pytest -q -s -rs tests/test_llm_explainer.py \
+  -k 'live_gemini and not generation_and_review'
+sleep 61
+RUN_LIVE_GEMINI_TESTS=1 python3 -m pytest -q -s -rs tests/test_llm_explainer.py \
+  -k 'live_gemini and generation_and_review'
 ```
 
-One test sends a handwritten claim about the user's listening history through the real judge and requires a rejection and template fallback. The other uses the normal prompt with six recommendation profiles and prints each raw output, its evidence, the judge's findings, and the final text.
+One test sends a handwritten claim about the user's listening history through the real judge and requires a rejection and template fallback. The replay test gives the saved candidates to the judge. The generation test uses the normal prompt with six profiles and prints each raw output, its evidence, the judge's findings, and the final text.
 
 ## Live Gemini Grounding Results
 
@@ -249,6 +253,88 @@ This is the baseline from the original live run. Each case has the unedited gene
 > The track is recommended because its vibe aligns with your preferences. — While the evidence shows closeness scores for energy and acousticness, there is no evidence provided regarding the user's actual listening history or specific preferences.
 
 **Evidence review:** Accept on grounding. The candidate calls the track honky-tonk and makes a comparison scoped to energy (0.39 vs. 0.36) and acousticness (0.54 vs. 0.55). Its track tags are supported. It could be clearer about the baroque-pop mismatch. The original judge cited missing listening history, which this explanation does not rely on.
+
+### After the judge began distinguishing request preferences from listening habits
+
+The revised rubric treats the selected genre and feature targets in the current profile as evidence of the current request. A favorite, an established taste, or past listening requires separate evidence. The generator prompt, profile values, and scoring were held fixed. The live run first submitted the exact six baseline candidates to the updated judge, then generated six new candidates with the same profiles. [Replay and fresh generation logs](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44424439891/job/135225510943)
+
+Earlier iterations revealed a genre-scope misread and a free-tier request limit. The workflow now separates the two batches. [Earlier 429 and rubric results](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44423740349/job/135223085373)
+
+#### Replay of the original candidates
+
+All six revised decisions matched the evidence review. The two changed decisions are visible in the table.
+
+| Track | Original judge | Revised judge | Revised judge findings |
+| --- | --- | --- | --- |
+| Ishqam | Rejected | Rejected | it aligns with your favorite pop genre — The evidence confirms 'pop' is the preferred genre for this request, but does not establish it as the user's 'favorite' genre. delivers the high-energy, danceable electronic sound you enjoy — While the track has these vibe tags, the evidence does not establish that the user enjoys this sound. |
+| 2002 - Acoustic | Accepted | Accepted | Displayed the candidate. |
+| Hot in It | Accepted | Rejected | the sound you enjoy — The evidence does not contain information about the user's personal listening history or established preferences beyond the current request. |
+| Santa Cruzin' | Rejected | Rejected | closely mirrors your target energy — The energy value is 0.64, which is significantly higher than the target of 0.24. closely mirrors your target mood preferences — The valence value is 0.60, which is significantly higher than the target of 0.36. |
+| arms | Rejected | Rejected | it aligns with your favorite rock genre — The evidence confirms the track is rock and matches the requested genre, but there is no evidence that rock is the user's 'favorite' genre. features the high-energy, fast-tempo, and darker electronic vibe you enjoy — The evidence confirms the track has these vibe tags, but there is no evidence that the user enjoys these specific vibes. |
+| Not What I Had In Mind | Rejected | Accepted | Displayed the candidate. |
+
+#### Fresh candidates with the same normal prompt
+
+The retrieved tracks and evidence were the same as in the baseline. Two initial reviews were unavailable and triggered fallback. A targeted replay with the same rubric and a required JSON response schema returned decisions for both. The entries below distinguish the initial behavior from the later review.
+
+#### Fresh output for Ishqam
+
+> Ishqam is a great match because it aligns with your preference for pop music and features a high-energy, danceable electronic sound that closely mirrors your target energy levels.
+
+**Initial judge:** Accepted. The application showed the candidate.
+
+**Evidence review:** Accept. Pop is the requested genre, and energy 0.84 vs. 0.80 supports the stated comparison. The audio descriptions are derived track tags.
+
+#### Fresh output for 2002 - Acoustic
+
+> This track is a great match because it aligns with your preference for acoustic music and features energy and acousticness levels that closely mirror your target preferences.
+
+**Initial judge:** Accepted. The application showed the candidate.
+
+**Evidence review:** Accept. Acoustic matches, with energy about 0.30 vs. 0.30 and acousticness 0.84 vs. 0.85.
+
+#### Fresh output for Hot in It
+
+> Tiësto and Charli XCX's 'Hot in It' is a great match because it aligns with your preference for high-energy, danceable electronic music that mirrors your target valence and energy levels.
+
+**Initial judge:** Review unavailable. The application showed the fallback.
+
+**Evidence review:** Flag the wording about the user's preferences. A dance request and energy/danceability targets do not establish a preference for electronic music. The track's electronic tag is supported. Energy 0.84 vs. 0.90 and valence 0.72 vs. 0.75 support the stated numerical comparisons.
+
+**Follow-up judge:** Accepted the original text. The phrase about a preference for electronic music remains a concern in the evidence review. [Follow-up review logs](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44425214857/job/135228178552)
+
+#### Fresh output for Santa Cruzin'
+
+> This track is a strong match because it aligns with your preferred jazz genre and features a moderate musical profile that closely mirrors your target energy and mood preferences.
+
+**Initial judge:** Rejected. The application showed the fallback.
+
+> closely mirrors your target energy — The energy value is 0.64, which is significantly higher than the target of 0.24.
+>
+> closely mirrors your target mood preferences — The valence value is 0.60, which is significantly higher than the target of 0.36.
+
+**Evidence review:** Reject. Jazz matches. Energy 0.64 vs. 0.24 and valence 0.60 vs. 0.36 do not support 'closely mirrors.'
+
+#### Fresh output for arms
+
+> This track is a strong match for your preferences because it aligns with your favorite rock genre and features a high-energy, fast-tempo sound that closely mirrors your target acoustic and valence levels.
+
+**Initial judge:** Review unavailable. The application showed the fallback.
+
+**Evidence review:** Reject. Rock matches and the acousticness and valence gaps are both 0.01. The profile does not establish that rock is the user's favorite.
+
+**Follow-up judge:** Rejected the original text and used the fallback. [Follow-up review logs](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44425214857/job/135228178552)
+
+> it aligns with your favorite rock genre — The evidence confirms the genre is rock, but there is no evidence that rock is the user's favorite genre.
+
+#### Fresh output for Not What I Had In Mind
+
+> This honky-tonk track is recommended because its low-energy, positive, and danceable vibe aligns closely with your preferred acoustic and energy levels.
+
+**Initial judge:** Accepted. The application showed the candidate.
+
+**Evidence review:** Accept on grounding. The sentence identifies honky-tonk as the track genre and compares the requested acousticness and energy targets. Their gaps are 0.01 and 0.03. The explanation could mention the baroque-pop mismatch more explicitly.
+
 
 ## Sample Outputs
 
