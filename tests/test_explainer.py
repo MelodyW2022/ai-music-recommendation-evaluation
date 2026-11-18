@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from src.data_loader import TrackRecord
 from src.explainer import explain_recommendation, explain_recommendations
 from src.retriever import RetrievalResult
@@ -40,9 +42,21 @@ def test_explain_recommendation_uses_retrieved_fields_and_evidence():
     assert explanation.genre == "pop"
     assert explanation.score == 6.50
     assert "Strong Match by Test Artist" in explanation.explanation
-    assert "measured audio features" in explanation.explanation
+    assert "Here is how it compares with your request." in explanation.explanation
     assert "energy closeness: 0.82 vs target 0.80" in explanation.explanation
     assert "Derived vibe tags for readability: high_energy, positive, danceable" in explanation.explanation
+
+
+def test_explanation_reports_a_large_energy_gap_without_claiming_a_close_match():
+    result = replace(
+        make_result(),
+        evidence=["energy closeness: 0.64 vs target 0.24 (+1.20)"],
+    )
+
+    explanation = explain_recommendation(result).explanation
+
+    assert "0.64 vs target 0.24" in explanation
+    assert "close to the requested profile" not in explanation
 
 
 def test_explain_recommendation_keeps_raw_evidence_for_audit():
