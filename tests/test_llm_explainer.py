@@ -12,6 +12,7 @@ from src.llm_explainer import (
     build_gemini_prompt,
     explain_with_gemini,
     parse_gemini_explanation,
+    review_gemini_response,
 )
 from src.main import DEFAULT_REAL_DATASET_PATH, load_demo_records, make_demo_query
 from src.retriever import RetrievalQuery, RetrievalResult, retrieve_tracks
@@ -29,6 +30,16 @@ LIVE_GENERATION_CASES = [
         "genre_unavailable", RetrievalQuery("baroque-pop", 0.36, 0.55, 0.68, 0.63)
     ),
 ]
+
+# Candidate and evidence-review expectation from the frozen README baseline.
+BASELINE_CANDIDATES = {
+    "high_energy_pop": ("Ishqam is a great match for your preferences because it aligns with your favorite pop genre and delivers the high-energy, danceable electronic sound you enjoy.", False),
+    "chill_acoustic": ("This track is a great match because it aligns with your preference for acoustic music and closely mirrors your target energy and acousticness levels.", True),
+    "intense_dance": ("Tiësto and Charli XCX's 'Hot in It' is a great match because it aligns with your preferred dance genre and delivers the high-energy, positive, and danceable electronic sound you enjoy.", False),
+    "low_energy_jazz": ("This track is a strong match because it aligns with your preferred jazz genre and features a moderate musical profile that closely mirrors your target energy and mood preferences.", False),
+    "high_energy_rock": ("This track is a strong match for your preferences because it aligns with your favorite rock genre and features the high-energy, fast-tempo, and darker electronic vibe you enjoy.", False),
+    "genre_unavailable": ("This honky-tonk track is recommended because its low-energy, positive, and danceable vibe aligns closely with your preferred acoustic and energy levels.", True),
+}
 
 @pytest.fixture
 def retrieval_result() -> RetrievalResult:
@@ -240,6 +251,45 @@ def test_live_gemini_judge_rejects_listening_history_claim(
     assert result.explanation == explain_recommendation(live_gemini_result)
 
 
+def print_live_review(stage, case, retrieved, result):
+    report = result.guardrail_report
+    review = {
+        "stage": stage,
+        "case": case.name,
+        "track": retrieved.track.track_name,
+        "evidence": retrieved.evidence,
+        "candidate": parse_gemini_explanation(result.raw_response or ""),
+        "accepted": result.used_llm,
+        "fallback_reason": result.fallback_reason,
+        "findings": [violation.message for violation in report.violations] if report else [],
+        "displayed": result.explanation.explanation,
+    }
+    print("Live review:", json.dumps(review, ensure_ascii=False))
+
+
+def test_live_gemini_replays_original_candidates(live_gemini_records):
+    failures = []
+    for case in LIVE_GENERATION_CASES:
+        retrieved = retrieve_tracks(case.query, live_gemini_records, k=1)[0]
+        candidate, expected = BASELINE_CANDIDATES[case.name]
+        result = review_gemini_response(
+            retrieved,
+            json.dumps({"explanation": candidate}),
+            lambda text: llm_explainer.call_judge(
+                text, retrieved, llm_explainer.DEFAULT_GEMINI_MODEL
+            ),
+        )
+        print_live_review("baseline_replay", case, retrieved, result)
+        if result.guardrail_report is None:
+            failures.append(f"{case.name}: {result.fallback_reason}")
+        elif result.used_llm != expected:
+            failures.append(f"{case.name}: expected accepted={expected}")
+        elif not expected and result.explanation != explain_recommendation(retrieved):
+            failures.append(f"{case.name}: expected the deterministic fallback")
+
+    assert not failures, "\n".join(failures)
+
+
 def test_live_gemini_generation_and_review(live_gemini_records):
     failures = []
     for case in LIVE_GENERATION_CASES:
@@ -247,17 +297,10 @@ def test_live_gemini_generation_and_review(live_gemini_records):
         result = explain_with_gemini(retrieved)
         report = result.guardrail_report
 
-        print(f"Live case: {case.name}, track: {retrieved.track.track_name}")
-        print("Retrieved evidence:", retrieved.evidence)
-        print("Live Gemini raw response:", result.raw_response)
-        print("Used Gemini explanation:", result.used_llm)
-        print("Fallback reason:", result.fallback_reason)
-        print("Final explanation:", result.explanation.explanation)
+        print_live_review("fresh_generation", case, retrieved, result)
         if report is None:
             failures.append(f"{case.name}: {result.fallback_reason}")
             continue
-        for finding in report.violations:
-            print("Live judge finding:", finding.message)
         if not result.used_llm and result.explanation != explain_recommendation(retrieved):
             failures.append(f"{case.name}: expected the deterministic fallback")
 
