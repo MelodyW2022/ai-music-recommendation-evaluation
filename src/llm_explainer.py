@@ -54,6 +54,27 @@ its status ("supported", "unsupported", or "contradicted"), and a short reason
 that points to the relevant evidence or explains what evidence is missing.
 """.strip()
 
+JUDGE_STATUSES = ("supported", "unsupported", "contradicted")
+JUDGE_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "claims": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "claim": {"type": "string"},
+                    "status": {"type": "string", "enum": list(JUDGE_STATUSES)},
+                    "reason": {"type": "string"},
+                },
+                "required": ["claim", "status", "reason"],
+            },
+        },
+    },
+    "required": ["claims"],
+}
+
 
 @dataclass(frozen=True)
 class LLMExplanationResult:
@@ -177,6 +198,7 @@ def call_judge(
                 system_instruction=JUDGE_INSTRUCTIONS,
                 temperature=0,
                 response_mime_type="application/json",
+                response_json_schema=JUDGE_RESPONSE_SCHEMA,
             ),
         )
     return parse_judge_violations(response.text or "")
@@ -197,7 +219,7 @@ def parse_judge_violations(raw_response: str) -> List[GuardrailViolation]:
             raise ValueError("Invalid claim in grounding review")
 
         status = item["status"]
-        if status not in ("supported", "unsupported", "contradicted"):
+        if status not in JUDGE_STATUSES:
             raise ValueError("Invalid claim status in grounding review")
         if status != "supported":
             violations.append(
