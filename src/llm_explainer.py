@@ -24,9 +24,14 @@ quote the relevant phrase from the candidate. Evaluate any implication of that
 phrase in "reason". Do not add a claim the candidate does not make.
 
 Treat the preferred genre and target feature values in the retrieval evidence
-as the user's preferences for this request. A genre match supports "the genre
-you selected" or "your preferred genre" in this context. Feature values close
-to their targets can support a scoped match, even when the genre differs.
+as the user's preferences for this request. In a comparison to those inputs,
+"preferred", "requested", and "target" are equivalent. In particular, the
+phrase "your preferred acoustic and energy levels" refers to the request's
+acousticness and energy targets. Evaluate numeric agreement for those fields.
+Do not label the word "preferred" unsupported for a request-scoped comparison.
+A genre match supports "the genre you selected" or "your preferred genre".
+Feature values close to their targets can support a scoped match, even when
+the genre differs.
 For example, when a track is country and the requested genre is jazz, "This
 country track is close to your target energy" makes a claim about the energy
 match only. Judge the energy comparison from its actual and target values.
