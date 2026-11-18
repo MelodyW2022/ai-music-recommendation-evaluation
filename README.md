@@ -23,25 +23,7 @@ Video walkthrough: https://youtu.be/QBHgzb6XJwI
 
 ![System Architecture](assets/system_architecture.svg)
 
-Retrieval ranks tracks using genre and audio-feature similarity. In live mode, Gemini writes an explanation, then a separate Gemini request checks each claim against the same track metadata and retrieval evidence. A rejected claim, invalid review, or unavailable judge triggers the deterministic explanation. The offline simulated cases continue to use the keyword guardrail.
-
-## Reliability Evidence
-
-### 1. Gemini Response + Guardrail Check
-
-![Gemini response and guardrail check](assets/gemini-guardrail-check.png)
-
-### 2. Guardrail Fallback Example
-
-![Guardrail fallback example](assets/guardrail-fallback.png)
-
-### 3. Evaluation Metrics
-
-![Evaluation metrics](assets/evaluation-metrics.png)
-
-### 4. Automated Tests
-
-![Automated tests](assets/automated-tests.png)
+Retrieval ranks tracks using genre and audio-feature similarity. In live mode, Gemini writes an explanation, then a separate Gemini request checks each claim against the same track metadata and retrieval evidence. A rejected claim, invalid review, or unavailable judge triggers the deterministic explanation. The offline examples replay simulated generator and judge responses through the same review and fallback logic.
 
 ## Dataset
 
@@ -109,7 +91,7 @@ python3 -m pytest -q
 Current verified result:
 
 ```text
-46 passed, 2 skipped
+45 passed, 2 skipped
 ```
 
 With a Gemini API key set, run the two live checks and print the responses:
@@ -138,11 +120,11 @@ Catalog size: 500
 Trace output shows guardrail fallback:
 
 ```text
-Gemini mode: simulated unsafe raw response for reliability demo
-Raw response: {"explanation": "This track has emotional lyrics and rich vocals."}
+Gemini mode: simulated explanation and judge response
+Raw response: {"explanation": "This track sounds like the songs you usually listen to."}
 Used LLM output: False
-Fallback reason: Gemini explanation failed guardrails
-Guardrail unsupported terms: ['lyrics', 'vocals']
+Fallback reason: Gemini explanation failed grounding check
+Guardrail finding: This track sounds like the songs you usually listen to. — The evidence does not include the user's listening history.
 Final safe explanation: Ishqam by Mika Singh;Ali Quli Mirza is recommended because...
 ```
 
@@ -162,12 +144,12 @@ The reliability layer checks that explanations are grounded in retrieval evidenc
 
 Measured metrics:
 
-- `unsupported_claim_rate`: the share of evaluated responses flagged by the keyword guardrail in simulated mode or flagged for unsupported or contradicted claims by the judge in live mode.
+- `unsupported_claim_rate`: the share of cases whose judge response flags an unsupported or contradicted claim.
 - `fallback_rate`: how often the system replaces unsafe or malformed output.
 - `format_failure_rate`: how often raw output cannot be parsed as valid JSON.
 - `global_evidence_coverage`: the share of expected markers present in the retrieval evidence attached to the final explanations.
 
-By default, the evaluator runs one safe simulated response, one unsupported-claim response, and one malformed response. To run the same retrieval cases with live generation and judging, use `python3 -m src.main evaluate --use-gemini --no-simulated-failures`. These metrics report the checker's decisions. Assessing whether the judge misses claims or rejects supported explanations requires a separately labeled sample.
+By default, the evaluator runs one safe simulated response, one unsupported-claim response, and one malformed response. To run the same retrieval cases with live generation and judging, use `python3 -m src.main evaluate --use-gemini --no-simulated-failures`. Offline metrics describe the scripted outcomes. Live metrics report the judge's decisions. Assessing whether the judge misses claims or rejects supported explanations requires a separately labeled sample.
 
 ## Stretch Features
 
