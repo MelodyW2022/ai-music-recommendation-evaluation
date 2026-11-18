@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 from typing import List, Optional
 
 from .explainer import RecommendationExplanation, explain_recommendation
@@ -8,15 +9,13 @@ from .guardrails import (
     check_explanation,
 )
 from .llm_explainer import (
+    FORMAT_FAILURE_REASON,
     LLMExplanationResult,
     explain_with_gemini,
-    parse_gemini_explanation,
+    parse_judge_violations,
+    review_gemini_response,
 )
 from .retriever import RetrievalQuery, RetrievalResult, retrieve_tracks
-
-
-FORMAT_FAILURE_REASON = "Gemini response did not contain a valid explanation"
-GUARDRAIL_FAILURE_REASON = "Gemini explanation failed guardrails"
 
 
 @dataclass(frozen=True)
@@ -91,12 +90,27 @@ PREDEFINED_CASES = [
     ),
 ]
 
-SIMULATED_GEMINI_RESPONSES = [
-    '{"explanation": "This track matches the request using retrieved genre and audio-feature evidence."}',
-    '{"explanation": "This track has emotional lyrics and rich vocals."}',
-    "This is not JSON, so the parser should reject it.",
-]
+SIMULATED_UNSUPPORTED_CASE = (
+    '{"explanation": "This track sounds like the songs you usually listen to."}',
+    json.dumps({"claims": [{
+        "claim": "This track sounds like the songs you usually listen to.",
+        "status": "unsupported",
+        "reason": "The evidence does not include the user's listening history.",
+    }]}),
+)
 
+SIMULATED_GEMINI_CASES = [
+    (
+        '{"explanation": "The song matches your chosen genre."}',
+        json.dumps({"claims": [{
+            "claim": "The song matches your chosen genre.",
+            "status": "supported",
+            "reason": "The retriever reported a genre match.",
+        }]}),
+    ),
+    SIMULATED_UNSUPPORTED_CASE,
+    ("This is not JSON, so the parser should reject it.", ""),
+]
 
 def evaluate_records(
     records,
@@ -119,10 +133,8 @@ def evaluate_records(
 
         result = retrieved[0]
         if simulate_llm_failures:
-            raw_response = SIMULATED_GEMINI_RESPONSES[
-                index % len(SIMULATED_GEMINI_RESPONSES)
-            ]
-            llm_result = explain_from_raw_response(result, raw_response)
+            raw_response, raw_review = SIMULATED_GEMINI_CASES[index]
+            llm_result = explain_simulated_response(result, raw_response, raw_review)
         elif use_gemini:
             llm_result = explain_with_gemini(result)
         else:
@@ -156,49 +168,12 @@ def evaluate_records(
     return summarize_items(items)
 
 
-def explain_from_raw_response(
-    result: RetrievalResult,
-    raw_response: str,
+def explain_simulated_response(
+    result: RetrievalResult, raw_response: str, raw_review: str
 ) -> LLMExplanationResult:
-    """
-    Convert a raw Gemini-style response into a guardrail-checked explanation.
-    """
-    explanation_text = parse_gemini_explanation(raw_response)
-    if not explanation_text:
-        return LLMExplanationResult(
-            explanation=explain_recommendation(result),
-            used_llm=False,
-            raw_response=raw_response,
-            fallback_reason=FORMAT_FAILURE_REASON,
-            guardrail_report=None,
-        )
-
-    track = result.track
-    raw_explanation = RecommendationExplanation(
-        track_name=track.track_name,
-        artist_name=track.artist_name,
-        genre=track.genre,
-        score=result.score,
-        explanation=explanation_text,
-        evidence=result.evidence,
-    )
-    raw_report = check_explanation(raw_explanation)
-
-    if raw_report.fallback_explanation:
-        return LLMExplanationResult(
-            explanation=explain_recommendation(result),
-            used_llm=False,
-            raw_response=raw_response,
-            fallback_reason=GUARDRAIL_FAILURE_REASON,
-            guardrail_report=raw_report,
-        )
-
-    return LLMExplanationResult(
-        explanation=raw_explanation,
-        used_llm=True,
-        raw_response=raw_response,
-        fallback_reason=None,
-        guardrail_report=raw_report,
+    """Replay a canned candidate and judge response through the live review logic."""
+    return review_gemini_response(
+        result, raw_response, lambda _: parse_judge_violations(raw_review)
     )
 
 
