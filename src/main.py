@@ -165,6 +165,8 @@ def run_trace(
             "Guardrail unsupported terms: "
             f"{llm_result.guardrail_report.unsupported_terms}"
         )
+        for violation in llm_result.guardrail_report.violations:
+            print(f"Guardrail finding: {violation.message}")
     print(f"Final safe explanation: {llm_result.explanation.explanation}")
 
 
