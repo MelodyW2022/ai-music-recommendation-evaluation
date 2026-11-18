@@ -102,6 +102,30 @@ RUN_LIVE_GEMINI_TESTS=1 python3 -m pytest -q -s -rs tests/test_llm_explainer.py 
 
 One test sends a handwritten claim about the user's listening history through the real judge and requires a rejection and template fallback. The other uses the normal prompt to generate and review an explanation, printing the raw output, judge findings, and final text. A normal generation can be grounded, so this second test does not require Gemini to invent an unsupported claim.
 
+## Live Gemini Grounding Results
+
+Both live tests passed on November 18, 2026 with `gemini-3.1-flash-lite`. The tests used *Ishqam*, a pop track with an energy score of `0.84` against the user's target of `0.80`. [GitHub Actions run](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44421411937/job/135215064365)
+
+### Handwritten hard case
+
+The test supplied this candidate directly to the live Gemini judge:
+
+> It's a pop track, so it should sound a lot like the songs you usually listen to.
+
+The judge rejected the inference about listening history:
+
+> A genre match does not establish a listener's history or confirm that the track sounds like their usual preferences.
+
+The application discarded the candidate and displayed the deterministic explanation from the retrieved track data.
+
+### Normal generation prompt
+
+The live Gemini generator returned:
+
+> This track is a great match because it aligns with your preference for pop music and features a high-energy, danceable electronic sound that closely mirrors your target energy levels.
+
+The live judge accepted the explanation, and the application displayed it as written. This is one example of an accepted output. Estimating the rate of unsupported claims under the normal prompt requires reviewing more outputs against the evidence.
+
 ## Sample Outputs
 
 Demo output shows retrieval over the 500-song sample:
