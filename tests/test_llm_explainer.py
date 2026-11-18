@@ -41,6 +41,12 @@ BASELINE_CANDIDATES = {
     "genre_unavailable": ("This honky-tonk track is recommended because its low-energy, positive, and danceable vibe aligns closely with your preferred acoustic and energy levels.", True),
 }
 
+# These candidates were generated normally, but their first review was unavailable.
+FOLLOWUP_CANDIDATES = {
+    "intense_dance": "Tiësto and Charli XCX's 'Hot in It' is a great match because it aligns with your preference for high-energy, danceable electronic music that mirrors your target valence and energy levels.",
+    "high_energy_rock": "This track is a strong match for your preferences because it aligns with your favorite rock genre and features a high-energy, fast-tempo sound that closely mirrors your target acoustic and valence levels.",
+}
+
 @pytest.fixture
 def retrieval_result() -> RetrievalResult:
     track = TrackRecord(
@@ -269,9 +275,18 @@ def print_live_review(stage, case, retrieved, result):
 
 def test_live_gemini_replays_original_candidates(live_gemini_records):
     failures = []
-    for case in LIVE_GENERATION_CASES:
+    cases = [
+        ("baseline_replay", case, *BASELINE_CANDIDATES[case.name])
+        for case in LIVE_GENERATION_CASES
+        if os.getenv("LIVE_GEMINI_MODE") != "run-live-gemini-followup"
+    ]
+    cases.extend(
+        ("fresh_review_retry", case, FOLLOWUP_CANDIDATES[case.name], None)
+        for case in LIVE_GENERATION_CASES
+        if case.name in FOLLOWUP_CANDIDATES
+    )
+    for stage, case, candidate, expected in cases:
         retrieved = retrieve_tracks(case.query, live_gemini_records, k=1)[0]
-        candidate, expected = BASELINE_CANDIDATES[case.name]
         result = review_gemini_response(
             retrieved,
             json.dumps({"explanation": candidate}),
@@ -279,12 +294,12 @@ def test_live_gemini_replays_original_candidates(live_gemini_records):
                 text, retrieved, llm_explainer.DEFAULT_GEMINI_MODEL
             ),
         )
-        print_live_review("baseline_replay", case, retrieved, result)
+        print_live_review(stage, case, retrieved, result)
         if result.guardrail_report is None:
             failures.append(f"{case.name}: {result.fallback_reason}")
-        elif result.used_llm != expected:
+        elif expected is not None and result.used_llm != expected:
             failures.append(f"{case.name}: expected accepted={expected}")
-        elif not expected and result.explanation != explain_recommendation(retrieved):
+        elif not result.used_llm and result.explanation != explain_recommendation(retrieved):
             failures.append(f"{case.name}: expected the deterministic fallback")
 
     assert not failures, "\n".join(failures)
