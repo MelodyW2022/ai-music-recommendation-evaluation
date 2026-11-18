@@ -36,4 +36,12 @@ jobs:
             echo "::error::Configure the GEMINI_API_KEY repository secret first."
             exit 1
           fi
-          python -m pytest -q -s -rs tests/test_llm_explainer.py -k live_gemini
+          replay_status=0
+          python -m pytest -q -s -rs tests/test_llm_explainer.py \
+            -k 'live_gemini and not generation_and_review' || replay_status=$?
+
+          # The replay and fresh batches fit separately in the free-tier window.
+          sleep 61
+          python -m pytest -q -s -rs tests/test_llm_explainer.py \
+            -k 'live_gemini and generation_and_review'
+          exit "$replay_status"
