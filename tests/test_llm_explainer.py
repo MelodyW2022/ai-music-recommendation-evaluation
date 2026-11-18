@@ -287,12 +287,22 @@ def test_live_gemini_replays_original_candidates(live_gemini_records):
     )
     for stage, case, candidate, expected in cases:
         retrieved = retrieve_tracks(case.query, live_gemini_records, k=1)[0]
+
+        def judge(text):
+            try:
+                return llm_explainer.call_judge(
+                    text, retrieved, llm_explainer.DEFAULT_GEMINI_MODEL
+                )
+            except Exception as exc:
+                print(f"Live judge error for {case.name}: {type(exc).__name__}")
+                if type(exc) is ValueError:
+                    print(f"Judge validation: {exc}")
+                raise
+
         result = review_gemini_response(
             retrieved,
             json.dumps({"explanation": candidate}),
-            lambda text: llm_explainer.call_judge(
-                text, retrieved, llm_explainer.DEFAULT_GEMINI_MODEL
-            ),
+            judge,
         )
         print_live_review(stage, case, retrieved, result)
         if result.guardrail_report is None:
@@ -369,6 +379,7 @@ def test_call_judge_sends_original_explanation_and_retrieval_evidence(
             assert payload["track"]["genre"] == "pop"
             assert payload["evidence"] == retrieval_result.evidence
             assert "List every factual claim" in config.system_instruction
+            assert config.response_json_schema == llm_explainer.JUDGE_RESPONSE_SCHEMA
             return SimpleNamespace(
                 text='{"claims": [{"claim": "This is pop.", '
                 '"status": "supported", "reason": "The track genre is pop."}]}'
