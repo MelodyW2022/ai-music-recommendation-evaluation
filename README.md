@@ -91,7 +91,7 @@ python3 -m pytest -q
 Current verified result:
 
 ```text
-45 passed, 2 skipped
+46 passed, 2 skipped
 ```
 
 With a Gemini API key set, run the two live checks and print the responses:
@@ -100,7 +100,7 @@ With a Gemini API key set, run the two live checks and print the responses:
 RUN_LIVE_GEMINI_TESTS=1 python3 -m pytest -q -s -rs tests/test_llm_explainer.py -k live_gemini
 ```
 
-One test sends a handwritten claim about the user's listening history through the real judge and requires a rejection and template fallback. The other uses the normal prompt to generate and review an explanation, printing the raw output, judge findings, and final text. A normal generation can be grounded, so this second test does not require Gemini to invent an unsupported claim.
+One test sends a handwritten claim about the user's listening history through the real judge and requires a rejection and template fallback. The other uses the normal prompt with six recommendation profiles and prints each raw output, its evidence, the judge's findings, and the final text.
 
 ## Live Gemini Grounding Results
 
@@ -126,6 +126,21 @@ The live Gemini generator returned:
 
 The live judge accepted the explanation, and the application displayed it as written. This is one example of an accepted output. Estimating the rate of unsupported claims under the normal prompt requires reviewing more outputs against the evidence.
 
+### Six profiles with the normal prompt
+
+A follow-up run used six different preference profiles and retrieved six different tracks. The judge accepted two candidates and rejected four. The following observations come from comparing each candidate with its retrieval evidence. [Raw responses and judge findings](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44422281225/job/135218030635)
+
+| Track | Judge decision | Evidence review |
+| --- | --- | --- |
+| Ishqam | Rejected | The pop genre and track tags are supported. The output treats the requested genre as a favorite and suggests the user already enjoys the electronic sound. |
+| 2002 - Acoustic | Accepted | The genre matches. Energy rounds to `0.30` against a target of `0.30`, and acousticness is `0.84` against `0.85`. |
+| Hot in It | Accepted | The dance genre and track tags are supported. The phrase “electronic sound you enjoy” implies a preference the query does not establish. |
+| Santa Cruzin' | Rejected | Jazz matches, but energy `0.64` vs. `0.24` and valence `0.60` vs. `0.36` undercut the claim of a close match. |
+| arms | Rejected | The rock genre and track tags are supported. “Favorite” and “vibe you enjoy” go beyond what the current request establishes. |
+| Not What I Had In Mind | Rejected | The track is labeled honky-tonk, while the user requested baroque-pop. The candidate correctly identifies the track genre and limits its match to energy (`0.39` vs. `0.36`) and acousticness (`0.54` vs. `0.55`). The judge's rejection cited missing listening history even though the candidate makes no such claim. |
+
+This sample shows both useful rejections and inconsistent judgments about the user's current preferences. The fallback now describes the comparison and presents the evidence without asserting that all audio features closely match.
+
 ## Sample Outputs
 
 Demo output shows retrieval over the 500-song sample:
@@ -149,7 +164,7 @@ Raw response: {"explanation": "This track sounds like the songs you usually list
 Used LLM output: False
 Fallback reason: Gemini explanation failed grounding check
 Guardrail finding: This track sounds like the songs you usually listen to. — The evidence does not include the user's listening history.
-Final safe explanation: Ishqam by Mika Singh;Ali Quli Mirza is recommended because...
+Final safe explanation: Ishqam by Mika Singh;Ali Quli Mirza was selected by the recommender. Here is how it compares with your request. ...
 ```
 
 Evaluation output summarizes reliability:
