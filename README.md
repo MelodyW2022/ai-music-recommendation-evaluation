@@ -53,9 +53,15 @@ python3 -m src.main evaluate --use-gemini --no-simulated-failures
 
 ## Tests
 
-- **Offline** — Run `python3 -m pytest -q` without API keys. The suite covers ranking, evidence handling, response parsing, reviewer routing, quote validation, fallback, and all four evaluation metrics. The latest run passed **47 tests**.
-- **Live** — Opt-in tests exercise generation and review through real APIs, including when the app should accept an explanation or show the fallback.
+Run `python3 -m pytest -q` without API keys. The offline suite passed **47 tests**. Key checks include:
 
-[Offline test output](assets/automated-tests.svg) · [How to run the live tests](docs/grounding-evaluation.md#reproduce-the-live-tests)
+- **Ranking and evidence.** The retriever returns the highest-scoring tracks, and the generator, reviewer, and Python fallback use the same five scoring comparisons.
+- **Acceptance and fallback.** A supported explanation is displayed as written. Unsupported or contradicted claims, malformed output, and an unavailable review trigger the Python fallback.
+- **Reviewer quote validation.** A quotation that does not appear verbatim in the draft makes the review invalid and triggers the fallback.
+- **Evaluation metrics.** Tests assert all four offline metrics and verify that missing evidence lowers coverage.
+
+Opt-in live tests use real Gemini and Claude requests to check the full flow. A regression pair checks that an exact genre match is accepted and an unsupported claim of a perfect match across all preferences is rejected.
+
+[Offline test output](assets/automated-tests.svg) · [Live test commands and results](docs/grounding-evaluation.md#follow-up-claude-regressions)
 
 [Original walkthrough](https://youtu.be/QBHgzb6XJwI)
