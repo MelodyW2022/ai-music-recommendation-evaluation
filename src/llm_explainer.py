@@ -116,8 +116,19 @@ def explain_with_gemini(
     if not raw_response:
         return _deterministic_fallback(result, "Gemini returned an empty response")
 
-    return review_gemini_response(
+    first_review = review_gemini_response(
         result, raw_response, lambda text: call_judge(text, result, model)
+    )
+    if not first_review.used_llm or not os.getenv("ANTHROPIC_API_KEY"):
+        return first_review
+
+    from .alternative_judges import review_with_claude
+
+    return review_gemini_response(
+        result,
+        raw_response,
+        lambda text: review_with_claude(text, result),
+        judge_name="Claude",
     )
 
 
@@ -125,6 +136,8 @@ def review_gemini_response(
     result: RetrievalResult,
     raw_response: str,
     judge: Callable[[str], List[GuardrailViolation]],
+    *,
+    judge_name: str = "Gemini",
 ) -> LLMExplanationResult:
     """Parse, review, and accept a candidate or use the deterministic fallback."""
     explanation_text = parse_gemini_explanation(raw_response)
@@ -146,7 +159,7 @@ def review_gemini_response(
         claim_violations = judge(explanation_text)
     except Exception:
         return _deterministic_fallback(
-            result, "Gemini grounding check unavailable", raw_response=raw_response
+            result, f"{judge_name} grounding check unavailable", raw_response=raw_response
         )
 
     guardrail_report = check_explanation(
@@ -158,7 +171,7 @@ def review_gemini_response(
             explanation=explain_recommendation(result),
             used_llm=False,
             raw_response=raw_response,
-            fallback_reason=GUARDRAIL_FAILURE_REASON,
+            fallback_reason=f"{judge_name} explanation failed grounding check",
             guardrail_report=guardrail_report,
         )
 
