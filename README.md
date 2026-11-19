@@ -72,6 +72,6 @@ Opt-in live tests use real Gemini and Claude requests to check the full flow. A 
 2. **Feedback-driven revision.** Gemini already generates a draft, Claude reviews it, and the app shows a Python fallback when the draft fails. Next, send validated rejection feedback to Gemini, review each rewrite, and allow up to three rewrites before falling back.
 3. **Ongoing monitoring.** Periodically sample new explanations to see whether reviewer quality changes as the catalog and user profiles change. Once revisions are available, measure how many drafts each round rescues and how much latency and API cost it adds.
 
-[Netflix's approach to evaluating recommendation explanations](https://arxiv.org/abs/2608.18300)
+[Netflix TechBlog: The Lifecycle of LLM-as-a-Judge](https://netflixtechblog.com/the-lifecycle-of-llm-as-a-judge-building-aligning-and-monitoring-at-scale-c95bd8283508)
 
 [Original walkthrough](https://youtu.be/QBHgzb6XJwI)
