@@ -71,9 +71,11 @@ Opt-in live tests use real Gemini and Claude requests to check the full flow. A 
 | Phase | Already done | Next step |
 | --- | --- | --- |
 | **1. Human evaluation baseline** | Manually checked saved explanations against the scoring evidence and recorded verdicts and reasons. | Write a consistent labeling guide and reserve a separate set of cases for evaluation. |
-| **2. Reviewer calibration** | Found false accepts and false rejects, refined the review rules, and verified the fixes with live regression tests. | Measure false accepts, false rejects, and whether the reviewer gives the right reason when both it and the human correctly reject a draft. |
+| **2. Reviewer calibration** | Found false accepts and false rejects, refined the review rules, and verified the fixes with live regression tests. | Measure false accepts and false rejects. Audit the reasoning behind correct rejects and correct accepts. |
 | **3. Generation and revision** | Gemini drafts an explanation, Claude reviews it, and Python provides a fallback when the draft fails. | Pass validated rejection feedback back to Gemini and review each rewrite. Allow up to three rewrites after the first draft, then show the Python fallback if none passes. |
 | **4. Ongoing monitoring** | Saved live run logs and built repeatable regression tests. | Periodically sample new outputs to check for reviewer drift. Track the pass-rate gains, latency, and API cost of each revision round once revisions are available. |
+
+Netflix compares reasons when the human and reviewer both reject a draft. This roadmap also includes auditing the reviewer’s reasons for correct accepts.
 
 [Netflix TechBlog: The Lifecycle of LLM-as-a-Judge](https://netflixtechblog.com/the-lifecycle-of-llm-as-a-judge-building-aligning-and-monitoring-at-scale-c95bd8283508)
 
