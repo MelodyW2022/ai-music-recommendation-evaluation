@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import src.alternative_judges as alternative_judges
 from src.alternative_judges import (
     CLAUDE_JUDGE_MODEL,
     GROQ_JUDGE_MODEL,
@@ -13,6 +14,7 @@ from src.alternative_judges import (
 from src.data_loader import TrackRecord
 from src.evaluator import PREDEFINED_CASES, EvaluationCase
 from src.explainer import explain_recommendation
+from src.guardrails import GuardrailViolation
 import src.llm_explainer as llm_explainer
 from src.llm_explainer import (
     build_gemini_prompt,
@@ -144,6 +146,7 @@ def test_explain_with_gemini_returns_safe_guardrail_checked_output(
     retrieval_result: RetrievalResult,
 ):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(
         llm_explainer,
         "_generate_gemini_response_text",
@@ -321,7 +324,8 @@ def test_live_gemini_replays_original_candidates(live_gemini_records):
     assert not failures, "\n".join(failures)
 
 
-def test_live_gemini_generation_and_review(live_gemini_records):
+def test_live_gemini_generation_and_review(monkeypatch, live_gemini_records):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     failures = []
     for case in LIVE_GENERATION_CASES:
         retrieved = retrieve_tracks(case.query, live_gemini_records, k=1)[0]
@@ -388,6 +392,89 @@ def test_live_judge_comparison(live_gemini_records):
                     pytest.fail(failures[-1])
 
     assert not failures, "\n".join(failures)
+
+
+@pytest.mark.parametrize("outcome", ["pass", "reject", "unavailable", "first_reject"])
+def test_claude_second_review(monkeypatch, retrieval_result, outcome):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    candidate = "This track matches your selected genre."
+    monkeypatch.setattr(
+        llm_explainer,
+        "_generate_gemini_response_text",
+        lambda *_: json.dumps({"explanation": candidate}),
+    )
+    violation = GuardrailViolation("unsupported_claim", "Unsupported preference", "error")
+    calls = []
+
+    def gemini(text, retrieved, model):
+        calls.append(("Gemini", text, retrieved))
+        return [violation] if outcome == "first_reject" else []
+
+    def claude(text, retrieved):
+        calls.append(("Claude", text, retrieved))
+        if outcome == "unavailable":
+            raise TimeoutError
+        return [violation] if outcome == "reject" else []
+
+    monkeypatch.setattr(llm_explainer, "call_judge", gemini)
+    monkeypatch.setattr(alternative_judges, "review_with_claude", claude)
+    result = explain_with_gemini(retrieval_result)
+
+    reviewers = ["Gemini"] if outcome == "first_reject" else ["Gemini", "Claude"]
+    assert calls == [(reviewer, candidate, retrieval_result) for reviewer in reviewers]
+    assert result.used_llm == (outcome == "pass")
+    if outcome == "pass":
+        assert result.explanation.explanation == candidate
+    else:
+        assert result.explanation == explain_recommendation(retrieval_result)
+        assert result.fallback_reason == {
+            "reject": "Claude explanation failed grounding check",
+            "unavailable": "Claude grounding check unavailable",
+            "first_reject": "Gemini explanation failed grounding check",
+        }[outcome]
+
+
+def test_live_claude_second_review(monkeypatch, live_gemini_records):
+    if os.getenv("RUN_LIVE_CLAUDE_REVIEW") != "1":
+        pytest.skip("set RUN_LIVE_CLAUDE_REVIEW=1 to test the second review")
+    assert os.getenv("ANTHROPIC_API_KEY"), "ANTHROPIC_API_KEY must be configured"
+
+    # Use saved explanations so this test checks the reviewers independently of
+    # variation in generation.
+    acoustic = next(case for case in LIVE_GENERATION_CASES if case.name == "chill_acoustic")
+    dance = next(case for case in LIVE_GENERATION_CASES if case.name == "intense_dance")
+    accepted_candidate = BASELINE_CANDIDATES[acoustic.name][0]
+    rejected_candidate = FOLLOWUP_CANDIDATES[dance.name]
+    production_judge = llm_explainer.call_judge
+    claude_calls = []
+
+    def generate(retrieved, model):
+        candidate = accepted_candidate if retrieved.track.genre == "acoustic" else rejected_candidate
+        return json.dumps({"explanation": candidate})
+
+    def initial_judge(text, retrieved, model):
+        # Reproduce Gemini's observed false acceptance in the saved dance case.
+        if text == rejected_candidate:
+            return []
+        return production_judge(text, retrieved, model)
+
+    def claude(text, retrieved):
+        claude_calls.append(text)
+        return review_with_claude(text, retrieved)
+
+    monkeypatch.setattr(llm_explainer, "_generate_gemini_response_text", generate)
+    monkeypatch.setattr(llm_explainer, "call_judge", initial_judge)
+    monkeypatch.setattr(alternative_judges, "review_with_claude", claude)
+    for case, expected in ((acoustic, True), (dance, False)):
+        retrieved = retrieve_tracks(case.query, live_gemini_records, k=1)[0]
+        result = explain_with_gemini(retrieved)
+        print_live_review("claude_second_review", case, retrieved, result)
+        assert result.used_llm == expected, result.fallback_reason
+        if not expected:
+            assert result.fallback_reason == "Claude explanation failed grounding check"
+            assert result.explanation == explain_recommendation(retrieved)
+    assert claude_calls == [accepted_candidate, rejected_candidate]
 
 
 @pytest.mark.parametrize("reply", ["not JSON", '{"claims": []}', None])
