@@ -64,4 +64,12 @@ Opt-in live tests use real Gemini and Claude requests to check the full flow. A 
 
 [Offline test output](assets/automated-tests.svg) · [Live test commands and results](docs/grounding-evaluation.md#follow-up-claude-regressions)
 
+## Future Work
+
+- **Calibrate the reviewer with human labels.** Record pass/fail decisions and evidence-backed reasons. Refine the rubric when the reviewer disagrees with a human or rejects an explanation for a different reason. Verify changes on held-out cases.
+- **Add a bounded revision loop.** Send validated review feedback back to Gemini and review each revision. Stop at the first passing draft. After the initial draft and up to three revisions, show the Python fallback if none passes.
+- **Monitor quality and cost.** Periodically audit accepted, revised, and fallback cases. Track false accepts, false rejects, and agreement with human rejection reasons. Compare pass rates by revision round with added latency and API cost.
+
+[Netflix's approach to evaluating recommendation explanations](https://arxiv.org/abs/2608.18300)
+
 [Original walkthrough](https://youtu.be/QBHgzb6XJwI)
