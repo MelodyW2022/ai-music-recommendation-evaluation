@@ -78,7 +78,7 @@ def review_with_groq(
     from groq import APIStatusError, Groq
 
     try:
-        with Groq(timeout=45, max_retries=0) as client:
+        with Groq(timeout=45, max_retries=2) as client:
             response = client.chat.completions.create(
                 model=GROQ_JUDGE_MODEL,
                 max_completion_tokens=2048,
