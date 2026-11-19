@@ -116,20 +116,18 @@ def explain_with_gemini(
     if not raw_response:
         return _deterministic_fallback(result, "Gemini returned an empty response")
 
-    first_review = review_gemini_response(
-        result, raw_response, lambda text: call_judge(text, result, model)
-    )
-    # When Claude is configured, its review decides whether to use the candidate.
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        return first_review
+    if os.getenv("ANTHROPIC_API_KEY"):
+        from .alternative_judges import review_with_claude
 
-    from .alternative_judges import review_with_claude
+        return review_gemini_response(
+            result,
+            raw_response,
+            lambda text: review_with_claude(text, result),
+            judge_name="Claude",
+        )
 
     return review_gemini_response(
-        result,
-        raw_response,
-        lambda text: review_with_claude(text, result),
-        judge_name="Claude",
+        result, raw_response, lambda text: call_judge(text, result, model)
     )
 
 
