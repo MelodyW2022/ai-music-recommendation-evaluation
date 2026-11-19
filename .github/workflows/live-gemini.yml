@@ -77,7 +77,7 @@ jobs:
       - name: Run offline regression suite
         if: github.event.label.name == 'run-claude-closeout'
         run: python -m pytest -q
-      - name: Verify the live Claude second review
+      - name: Verify live Gemini generation and Claude review
         if: github.event.label.name == 'run-claude-closeout'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -91,4 +91,4 @@ jobs:
               exit 1
             fi
           done
-          python -m pytest -q -s -rs tests/test_llm_explainer.py -k live_claude_second_review
+          python -m pytest -q -s -rs tests/test_llm_explainer.py -k live_claude_review
