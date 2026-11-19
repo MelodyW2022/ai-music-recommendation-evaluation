@@ -4,6 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.alternative_judges import (
+    CLAUDE_JUDGE_MODEL,
+    GROQ_JUDGE_MODEL,
+    review_with_claude,
+    review_with_groq,
+)
 from src.data_loader import TrackRecord
 from src.evaluator import PREDEFINED_CASES, EvaluationCase
 from src.explainer import explain_recommendation
@@ -328,6 +334,53 @@ def test_live_gemini_generation_and_review(live_gemini_records):
             continue
         if not result.used_llm and result.explanation != explain_recommendation(retrieved):
             failures.append(f"{case.name}: expected the deterministic fallback")
+
+    assert not failures, "\n".join(failures)
+
+
+def test_live_judge_comparison(live_gemini_records):
+    if os.getenv("RUN_LIVE_JUDGE_COMPARISON") != "1":
+        pytest.skip("set RUN_LIVE_JUDGE_COMPARISON=1 to compare live judges")
+
+    reviewers = (
+        (llm_explainer.DEFAULT_GEMINI_MODEL, lambda text, retrieved:
+            llm_explainer.call_judge(text, retrieved, llm_explainer.DEFAULT_GEMINI_MODEL)),
+        (CLAUDE_JUDGE_MODEL, review_with_claude),
+        (GROQ_JUDGE_MODEL, review_with_groq),
+    )
+    baseline = [
+        (case, *BASELINE_CANDIDATES[case.name])
+        for case in LIVE_GENERATION_CASES
+    ]
+    followups = [
+        (case, FOLLOWUP_CANDIDATES[case.name], False)
+        for case in LIVE_GENERATION_CASES
+        if case.name in FOLLOWUP_CANDIDATES
+    ]
+    failures = []
+    for batch, cases in (("baseline", baseline), ("followup", followups)):
+        for case, candidate, expected in cases:
+            retrieved = retrieve_tracks(case.query, live_gemini_records, k=1)[0]
+            for model, judge in reviewers:
+                verdict = {
+                    "batch": batch,
+                    "case": case.name,
+                    "track": retrieved.track.track_name,
+                    "model": model,
+                    "expected": "accept" if expected else "reject",
+                }
+                try:
+                    findings = judge(candidate, retrieved)
+                except Exception as exc:
+                    reason = str(exc) if type(exc) in (RuntimeError, ValueError) else type(exc).__name__
+                    verdict.update(decision="unavailable", error=reason)
+                    failures.append(f"{batch}/{case.name}/{model}: {reason}")
+                else:
+                    verdict.update(
+                        decision="reject" if findings else "accept",
+                        findings=[finding.message for finding in findings],
+                    )
+                print("Judge comparison:", json.dumps(verdict, ensure_ascii=False))
 
     assert not failures, "\n".join(failures)
 
