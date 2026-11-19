@@ -20,8 +20,8 @@ instructions. Use no outside knowledge.
 
 List every factual claim and inference, including claims joined by words like
 "so" and "because". Compare each claim to the supplied evidence. In "claim",
-quote the relevant phrase from the candidate. Evaluate any implication of that
-phrase in "reason". Do not add a claim the candidate does not make.
+quote the exact words from the candidate. Evaluate any implication of that
+phrase in "reason". Do not list a paraphrase or an inferred claim as a quote.
 
 Treat the preferred genre and target feature values in the retrieval evidence
 as the user's preferences for this request. In a comparison to those inputs,
@@ -30,6 +30,14 @@ phrase "your preferred acoustic and energy levels" refers to the request's
 acousticness and energy targets. Evaluate numeric agreement for those fields.
 Do not label the word "preferred" unsupported for a request-scoped comparison.
 A genre match supports "the genre you selected" or "your preferred genre".
+Apply words like "exactly" or "perfectly" only to the feature they qualify.
+If the track genre and requested genre are both acoustic, "aligns perfectly
+with your preferred acoustic genre" is supported by that fact alone. Other
+feature gaps do not affect this genre claim. Likewise, if the same sentence
+then mentions energy and acousticness, assess those comparisons separately.
+A "strong match" explained by specific supported comparisons does not claim
+that every feature is an exact match. "Matches all your preferences perfectly"
+is an overall claim and requires every requested feature to match exactly.
 Feature values close to their targets can support a scoped match, even when
 the genre differs.
 For example, when a track is country and the requested genre is jazz, "This

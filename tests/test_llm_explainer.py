@@ -500,9 +500,17 @@ def test_live_claude_review(monkeypatch, live_gemini_records):
     print_live_review("fresh_gemini_generation_claude_review", acoustic, retrieved, result)
     assert result.guardrail_report is not None, result.fallback_reason
 
-    # Replay saved explanations so the expected verdicts do not depend on generation.
+    # Replay the draft that a previous live review rejected for reading a
+    # genre-specific modifier as a claim about the entire recommendation.
+    exact_genre_match = (
+        "This track is a strong match because it aligns perfectly with your "
+        "preferred acoustic genre and features energy and acousticness levels "
+        "that closely mirror your target preferences."
+    )
     saved_cases = (
         (acoustic, BASELINE_CANDIDATES[acoustic.name][0], True),
+        (acoustic, exact_genre_match, True),
+        (acoustic, "This track matches all your preferences perfectly.", False),
         (dance, FOLLOWUP_CANDIDATES[dance.name], False),
     )
     for case, candidate, expected in saved_cases:
