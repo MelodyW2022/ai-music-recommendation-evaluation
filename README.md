@@ -91,7 +91,7 @@ python3 -m pytest -q
 Current verified result:
 
 ```text
-46 passed, 3 skipped
+46 passed, 4 skipped
 ```
 
 With a Gemini API key set, run the live checks in separate batches and print the responses:
@@ -335,6 +335,35 @@ The retrieved tracks and evidence were the same as in the baseline. Two initial 
 
 **Evidence review:** Accept on grounding. The sentence identifies honky-tonk as the track genre and compares the requested acousticness and energy targets. Their gaps are 0.01 and 0.03. The explanation could mention the baroque-pop mismatch more explicitly.
 
+
+### Live comparison across Gemini, Claude, and Groq
+
+All three providers received the same judge instructions, candidate texts, track metadata, and retrieval evidence. This run used the six frozen baseline candidates and the two saved follow-up candidates. The expected decisions reflect the evidence review for this set. This comparison measures judging on eight saved examples. The live application still uses its existing Gemini judge.
+
+| Candidate | Expected | Gemini Flash-Lite | Claude Haiku 5.5 | Groq GPT-OSS 20B |
+| --- | --- | --- | --- | --- |
+| Ishqam | Reject | Reject | Reject | Accept |
+| 2002 - Acoustic | Accept | Accept | Accept | Accept |
+| Hot in It | Reject | Reject | Reject | Accept |
+| Santa Cruzin' | Reject | Reject | Reject | Reject |
+| arms | Reject | Reject | Reject | Accept |
+| Not What I Had In Mind | Accept | Accept | Accept | Accept |
+| Hot in It (follow-up) | Reject | Accept | Reject | Accept |
+| arms (follow-up) | Reject | Reject | Reject | Accept |
+
+| Reviewer | Agreement | False accepts | False rejects |
+| --- | ---: | ---: | ---: |
+| `gemini-3.1-flash-lite` | 7/8 | 1 | 0 |
+| `claude-haiku-5-5` | 8/8 | 0 | 0 |
+| `openai/gpt-oss-20b` | 3/8 | 5 | 0 |
+
+On the *Hot in It* follow-up, Claude identified that `electronic` was a track tag and that the user's selected genre was `dance`. Gemini and Groq both accepted that candidate. Groq rejected the large energy mismatch on *Santa Cruzin'* but accepted several unsupported preference claims.
+
+The initial direct HTTP request to Groq received a 403. The official Groq SDK completed the comparison after bounded transport retries were enabled for transient rate limits. These retries address API availability. Each case records a single returned verdict per model.
+
+[Gemini and Claude job log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44430799485/job/135247369947) · [Completed Groq job log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44431747230/job/135250544549)
+
+To reproduce the comparison on the draft PR, apply the `run-judge-comparison` label after setting `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, and `GROQ_API_KEY` in repository Actions Secrets. Use `run-groq-diagnostic` for the same cases against Groq alone. To trigger a label-based run again, remove and reapply the label.
 
 ## Sample Outputs
 
