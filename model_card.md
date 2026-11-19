@@ -29,8 +29,8 @@ The original project was explainable but small. This final version keeps that ba
 3. Retrieve top tracks using genre and audio-feature similarity.
 4. Carry evidence strings forward from retrieval.
 5. Generate deterministic explanations or optional Gemini explanations.
-6. Check live Gemini explanations against retrieval evidence with a separate Gemini request. If configured, Claude reviews the original candidate after this check and makes the final decision even if Gemini rejects or cannot review it. Otherwise, Gemini makes the final decision.
-7. Use the deterministic explanation when there is no usable candidate or the final reviewer rejects it or cannot return a valid review.
+6. Check each usable Gemini explanation once against retrieval evidence. Use Claude when configured and a separate Gemini request otherwise.
+7. Use the deterministic explanation when there is no usable candidate or the reviewer rejects it or cannot return a valid review.
 8. Evaluate reliability with predefined benchmark queries.
 
 ## Data
@@ -44,7 +44,7 @@ The dataset does not include lyrics, vocals, user listening history, reviews, or
 Current verified automated test result:
 
 ```text
-52 passed, 5 skipped
+50 passed, 5 skipped
 ```
 
 The evaluator runs three predefined retrieval cases and reports:
@@ -70,7 +70,7 @@ The offline demo replays simulated generation and judge responses to show how th
 Guardrails check for:
 
 - empty explanations
-- claims that the final reviewer identifies as unsupported or contradicted by the evidence, including claims about habitual taste when the profile only provides request settings
+- claims that the configured reviewer identifies as unsupported or contradicted by the evidence, including claims about habitual taste when the profile only provides request settings
 - missing retrieval evidence
 - incomplete evidence fields
 
