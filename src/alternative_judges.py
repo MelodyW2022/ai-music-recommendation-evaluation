@@ -75,28 +75,33 @@ def review_with_claude(
 def review_with_groq(
     explanation: str, result: RetrievalResult
 ) -> list[GuardrailViolation]:
-    response = _post_json(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"},
-        {
-            "model": GROQ_JUDGE_MODEL,
-            "max_completion_tokens": 2048,
-            "reasoning_effort": "low",
-            "messages": [
-                {"role": "system", "content": JUDGE_INSTRUCTIONS},
-                {"role": "user", "content": json.dumps(build_judge_payload(explanation, result))},
-            ],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "grounding_review",
-                    "strict": True,
-                    "schema": STRICT_JUDGE_SCHEMA,
+    from groq import APIStatusError, Groq
+
+    try:
+        with Groq(timeout=45, max_retries=0) as client:
+            response = client.chat.completions.create(
+                model=GROQ_JUDGE_MODEL,
+                max_completion_tokens=2048,
+                reasoning_effort="low",
+                messages=[
+                    {"role": "system", "content": JUDGE_INSTRUCTIONS},
+                    {"role": "user", "content": json.dumps(build_judge_payload(explanation, result))},
+                ],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "grounding_review",
+                        "strict": True,
+                        "schema": STRICT_JUDGE_SCHEMA,
+                    },
                 },
-            },
-        },
-    )
-    choice = response["choices"][0]
-    if choice["finish_reason"] != "stop":
+            )
+    except APIStatusError as exc:
+        detail = str(exc.body or "").replace(os.environ["GROQ_API_KEY"], "[REDACTED]")
+        detail = " ".join(detail.split())[:240]
+        raise RuntimeError(f"api.groq.com returned HTTP {exc.status_code}: {detail}") from None
+
+    choice = response.choices[0]
+    if choice.finish_reason != "stop":
         raise ValueError("Groq did not complete its grounding review")
-    return parse_judge_violations(choice["message"]["content"] or "")
+    return parse_judge_violations(choice.message.content or "")
