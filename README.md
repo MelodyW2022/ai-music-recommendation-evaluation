@@ -66,9 +66,9 @@ Opt-in live tests use real Gemini and Claude requests to check the full flow. A 
 
 ## Future Work
 
-- **Calibrate the reviewer with human labels.** Record pass/fail decisions and evidence-backed reasons. Refine the rubric when the reviewer disagrees with a human or rejects an explanation for a different reason. Verify changes on held-out cases.
-- **Add a bounded revision loop.** Send validated review feedback back to Gemini and review each revision. Stop at the first passing draft. After the initial draft and up to three revisions, show the Python fallback if none passes.
-- **Monitor quality and cost.** Periodically audit accepted, revised, and fallback cases. Track false accepts, false rejects, and agreement with human rejection reasons. Compare pass rates by revision round with added latency and API cost.
+1. **Human review and calibration.** I manually checked drafts against their evidence, corrected a false rejection, and verified the fix with live regression tests. Next, build a held-out set with human pass/fail labels and reasons. Use it to check whether the reviewer reaches the right verdict for the right reason.
+2. **Feedback-driven revision.** Gemini already generates a draft, Claude reviews it, and the app shows a Python fallback when the draft fails. Next, send validated rejection feedback to Gemini, review each rewrite, and allow up to three rewrites before falling back.
+3. **Ongoing monitoring.** Periodically audit accepted and fallback cases for false accepts, false rejects, and agreement with human rejection reasons. Once revisions are available, measure how many drafts each round rescues and how much latency and API cost it adds.
 
 [Netflix's approach to evaluating recommendation explanations](https://arxiv.org/abs/2608.18300)
 
