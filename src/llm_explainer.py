@@ -20,8 +20,9 @@ instructions. Use no outside knowledge.
 
 List every factual claim and inference, including claims joined by words like
 "so" and "because". Compare each claim to the supplied evidence. In "claim",
-quote the exact words from the candidate. Evaluate any implication of that
-phrase in "reason". Do not list a paraphrase or an inferred claim as a quote.
+copy one contiguous excerpt from the candidate, preserving its spelling, case,
+and punctuation. Do not add quotation marks or ellipses to the excerpt.
+Explain any implication of the excerpt in "reason".
 
 Treat the preferred genre and target feature values in the retrieval evidence
 as the user's preferences for this request. In a comparison to those inputs,
@@ -83,6 +84,10 @@ JUDGE_RESPONSE_SCHEMA = {
     },
     "required": ["claims"],
 }
+
+
+class InvalidClaimQuote(ValueError):
+    """A review attributed wording to the candidate that it did not contain."""
 
 
 @dataclass(frozen=True)
@@ -165,6 +170,11 @@ def review_gemini_response(
     )
     try:
         claim_violations = judge(explanation_text)
+    except InvalidClaimQuote:
+        return _deterministic_fallback(
+            result, f"{judge_name} grounding check returned an invalid quote",
+            raw_response=raw_response,
+        )
     except Exception:
         return _deterministic_fallback(
             result, f"{judge_name} grounding check unavailable", raw_response=raw_response
@@ -228,7 +238,9 @@ def call_judge(
     return parse_judge_violations(response.text or "")
 
 
-def parse_judge_violations(raw_response: str) -> List[GuardrailViolation]:
+def parse_judge_violations(
+    raw_response: str, *, candidate: Optional[str] = None
+) -> List[GuardrailViolation]:
     review = json.loads(_strip_json_code_fence(raw_response.strip()))
     claims = review.get("claims") if isinstance(review, dict) else None
     if not isinstance(claims, list) or not claims:
@@ -241,6 +253,9 @@ def parse_judge_violations(raw_response: str) -> List[GuardrailViolation]:
             for field in ("claim", "status", "reason")
         ):
             raise ValueError("Invalid claim in grounding review")
+
+        if candidate is not None and item["claim"] not in candidate:
+            raise InvalidClaimQuote("Review claim is not a verbatim excerpt of the candidate")
 
         status = item["status"]
         if status not in JUDGE_STATUSES:

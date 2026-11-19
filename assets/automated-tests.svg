@@ -6,15 +6,15 @@
   <g font-family="monospace" font-size="15" xml:space="preserve">
     <text x="22" y="70" fill="#86efac">$ python3 -m pytest -ra --color=no</text>
     <text x="22" y="91" fill="#e2e8f0"></text>
-    <text x="22" y="112" fill="#e2e8f0">collected 51 items</text>
+    <text x="22" y="112" fill="#e2e8f0">collected 52 items</text>
     <text x="22" y="133" fill="#e2e8f0">tests/test_create_spotify_sample.py ..                                   [  3%]</text>
     <text x="22" y="154" fill="#e2e8f0">tests/test_data_loader.py ....                                           [ 11%]</text>
     <text x="22" y="175" fill="#e2e8f0">tests/test_evaluator.py .....                                            [ 21%]</text>
-    <text x="22" y="196" fill="#e2e8f0">tests/test_explainer.py .....                                            [ 31%]</text>
+    <text x="22" y="196" fill="#e2e8f0">tests/test_explainer.py .....                                            [ 30%]</text>
     <text x="22" y="217" fill="#e2e8f0">tests/test_guardrails.py ..........                                      [ 50%]</text>
-    <text x="22" y="238" fill="#e2e8f0">tests/test_llm_explainer.py ........ssss....s....                        [ 92%]</text>
+    <text x="22" y="238" fill="#e2e8f0">tests/test_llm_explainer.py .........ssss....s....                       [ 92%]</text>
     <text x="22" y="259" fill="#e2e8f0">tests/test_retriever.py ....                                             [100%]</text>
     <text x="22" y="280" fill="#e2e8f0"></text>
-    <text x="22" y="301" fill="#86efac">46 passed, 5 skipped in 0.82s</text>
+    <text x="22" y="301" fill="#86efac">47 passed, 5 skipped in 0.88s</text>
   </g>
 </svg>

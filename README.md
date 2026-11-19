@@ -7,7 +7,7 @@ A Python music recommender that ranks tracks from a reproducible 500-track Spoti
 ![Offline retrieval and the single-review explanation flow](assets/system_architecture.svg)
 
 1. **Retrieve and rank.** The Python retriever scores every track against the requested genre and target energy, acousticness, valence, and danceability. It returns the top tracks with their scores and evidence, including the actual and target feature values.
-2. **Generate and review.** In live mode, Gemini drafts one explanation from the song name, artist, genre, score, and five scoring comparisons. Claude checks it once when configured. With only a Gemini key, a separate Gemini request performs that check. The reviewer checks each claim, including whether it implies a listening history the request does not provide.
+2. **Generate and review.** In live mode, Gemini drafts one explanation from the song name, artist, genre, score, and five scoring comparisons. Claude checks it once when configured. With only a Gemini key, a separate Gemini request performs that check. The reviewer checks each claim, including whether it implies a listening history the request does not provide. Python checks that every Claude claim quote is a verbatim excerpt of the draft.
 3. **Return the result.** A passing explanation is shown as written. Python builds an explanation from the same evidence when live generation is disabled, the output is unusable, or the review fails. The selected track and ranking come from retrieval.
 
 The catalog is a deterministic sample of the Hugging Face Spotify Tracks Dataset. Regenerate it with `python3 scripts/create_spotify_sample.py`.
@@ -51,7 +51,7 @@ python3 -m src.main evaluate --use-gemini --no-simulated-failures
 
 ## Tests
 
-The offline suite passed **46 tests**, with five opt-in live tests skipped. It covers retrieval, response parsing, reviewer selection, deterministic fallback, and evaluation metrics. An earlier live integration run confirmed that Claude accepted a freshly generated *2002 - Acoustic* explanation and rejected the saved *Hot in It* candidate, triggering fallback.
+The offline suite passed **47 tests**, with five opt-in live tests skipped. It covers retrieval, response parsing, reviewer selection, deterministic fallback, and evaluation metrics. An earlier live integration run confirmed that Claude accepted a freshly generated *2002 - Acoustic* explanation and rejected the saved *Hot in It* candidate, triggering fallback.
 
 [Pytest output](assets/automated-tests.svg) · [Live review excerpt](assets/claude-review.svg) · [Live test commands](docs/grounding-evaluation.md#reproduce-the-live-tests) · [GitHub Actions log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44449037925/job/135308148597)
 

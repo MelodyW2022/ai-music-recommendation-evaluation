@@ -69,7 +69,7 @@ def review_with_claude(
     if response["stop_reason"] != "end_turn":
         raise ValueError("Claude did not complete its grounding review")
     text = "".join(block["text"] for block in response["content"] if block["type"] == "text")
-    return parse_judge_violations(text)
+    return parse_judge_violations(text, candidate=explanation)
 
 
 def review_with_groq(

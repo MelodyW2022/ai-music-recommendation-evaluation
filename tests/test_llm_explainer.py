@@ -120,7 +120,7 @@ def test_hot_in_it_uses_the_same_five_scoring_fields_in_all_explanations(monkeyp
         assert payload["evidence"] == retrieved.evidence
         assert payload["explanation"] == candidate
         claims = [{
-            "claim": "your preference for electronic music",
+            "claim": "your preference for high-energy, danceable electronic music",
             "status": "unsupported",
             "reason": "The listener requested dance.",
         }]
@@ -141,6 +141,36 @@ def test_hot_in_it_uses_the_same_five_scoring_fields_in_all_explanations(monkeyp
     assert output.fallback_reason == "Claude explanation failed grounding check"
     assert all(line in output.explanation.explanation for line in retrieved.evidence)
     assert "electronic" not in output.explanation.explanation
+
+
+def test_claude_rejects_review_that_invents_a_quote(monkeypatch, retrieval_result):
+    candidate = "This track aligns perfectly with your preferred acoustic genre."
+    claims = [{
+        "claim": "your favorite genre",
+        "status": "unsupported",
+        "reason": "The current request does not specify a favorite genre.",
+    }]
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(
+        alternative_judges,
+        "_post_json",
+        lambda *_: {
+            "stop_reason": "end_turn",
+            "content": [{"type": "text", "text": json.dumps({"claims": claims})}],
+        },
+    )
+
+    output = review_gemini_response(
+        retrieval_result,
+        json.dumps({"explanation": candidate}),
+        lambda text: review_with_claude(text, retrieval_result),
+        judge_name="Claude",
+    )
+
+    assert not output.used_llm
+    assert output.guardrail_report is None
+    assert output.fallback_reason == "Claude grounding check returned an invalid quote"
+    assert output.explanation == explain_recommendation(retrieval_result)
 
 
 def test_parse_gemini_explanation_accepts_plain_json():
