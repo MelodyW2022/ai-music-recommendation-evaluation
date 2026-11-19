@@ -15,7 +15,8 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       ((github.event.label.name == 'run-live-gemini' ||
       github.event.label.name == 'run-live-gemini-followup' ||
-      github.event.label.name == 'run-judge-comparison') &&
+      github.event.label.name == 'run-judge-comparison' ||
+      github.event.label.name == 'run-groq-diagnostic') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'codex/gemini-grounding-judge')
     runs-on: ubuntu-latest
@@ -30,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
       - name: Run live Gemini tests
-        if: github.event.label.name != 'run-judge-comparison'
+        if: github.event.label.name != 'run-judge-comparison' && github.event.label.name != 'run-groq-diagnostic'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RUN_LIVE_GEMINI_TESTS: '1'
@@ -56,13 +57,14 @@ jobs:
             -k 'live_gemini and generation_and_review'
           exit "$replay_status"
       - name: Compare Gemini, Claude, and Groq on saved candidates
-        if: github.event.label.name == 'run-judge-comparison'
+        if: github.event.label.name == 'run-judge-comparison' || github.event.label.name == 'run-groq-diagnostic'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           RUN_LIVE_GEMINI_TESTS: '1'
           RUN_LIVE_JUDGE_COMPARISON: '1'
+          JUDGE_COMPARISON_MODE: ${{ github.event.label.name }}
         run: |
           for key in GEMINI_API_KEY ANTHROPIC_API_KEY GROQ_API_KEY; do
             if [ -z "${!key}" ]; then
