@@ -119,7 +119,8 @@ def explain_with_gemini(
     first_review = review_gemini_response(
         result, raw_response, lambda text: call_judge(text, result, model)
     )
-    if not first_review.used_llm or not os.getenv("ANTHROPIC_API_KEY"):
+    # When Claude is configured, its review decides whether to use the candidate.
+    if not os.getenv("ANTHROPIC_API_KEY"):
         return first_review
 
     from .alternative_judges import review_with_claude
