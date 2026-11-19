@@ -16,7 +16,8 @@ jobs:
       ((github.event.label.name == 'run-live-gemini' ||
       github.event.label.name == 'run-live-gemini-followup' ||
       github.event.label.name == 'run-judge-comparison' ||
-      github.event.label.name == 'run-groq-diagnostic') &&
+      github.event.label.name == 'run-groq-diagnostic' ||
+      github.event.label.name == 'run-claude-closeout') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'codex/gemini-grounding-judge')
     runs-on: ubuntu-latest
@@ -31,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
       - name: Run live Gemini tests
-        if: github.event.label.name != 'run-judge-comparison' && github.event.label.name != 'run-groq-diagnostic'
+        if: github.event.label.name != 'run-judge-comparison' && github.event.label.name != 'run-groq-diagnostic' && github.event.label.name != 'run-claude-closeout'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RUN_LIVE_GEMINI_TESTS: '1'
@@ -73,3 +74,21 @@ jobs:
             fi
           done
           python -m pytest -q -s -rs tests/test_llm_explainer.py -k live_judge_comparison
+      - name: Run offline regression suite
+        if: github.event.label.name == 'run-claude-closeout'
+        run: python -m pytest -q
+      - name: Verify the live Claude second review
+        if: github.event.label.name == 'run-claude-closeout'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RUN_LIVE_GEMINI_TESTS: '1'
+          RUN_LIVE_CLAUDE_REVIEW: '1'
+        run: |
+          for key in GEMINI_API_KEY ANTHROPIC_API_KEY; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing repository secret: $key"
+              exit 1
+            fi
+          done
+          python -m pytest -q -s -rs tests/test_llm_explainer.py -k live_claude_second_review
