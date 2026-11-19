@@ -68,9 +68,12 @@ Opt-in live tests use real Gemini and Claude requests to check the full flow. A 
 
 ## Future Work
 
-1. **Human review and calibration.** I manually checked drafts against their evidence, corrected a false rejection, and verified the fix with live regression tests. Next, use held-out cases with human labels and reasons to measure false accepts, false rejects, and agreement on rejection reasons.
-2. **Feedback-driven revision.** Gemini already generates a draft, Claude reviews it, and the app shows a Python fallback when the draft fails. Next, send validated rejection feedback to Gemini, review each rewrite, and allow up to three rewrites before falling back.
-3. **Ongoing monitoring.** Periodically sample new explanations to see whether reviewer quality changes as the catalog and user profiles change. Once revisions are available, measure how many drafts each round rescues and how much latency and API cost it adds.
+| Phase | Already done | Next step |
+| --- | --- | --- |
+| **1. Human evaluation baseline** | Manually checked saved explanations against the scoring evidence and recorded verdicts and reasons. | Write a consistent labeling guide and reserve a separate set of cases for evaluation. |
+| **2. Reviewer calibration** | Found false accepts and false rejects, refined the review rules, and verified the fixes with live regression tests. | Measure false accepts, false rejects, and whether the reviewer gives the right reason when both it and the human correctly reject a draft. |
+| **3. Generation and revision** | Gemini drafts an explanation, Claude reviews it, and Python provides a fallback when the draft fails. | Pass validated rejection feedback back to Gemini and review each rewrite. Allow up to three rewrites after the first draft, then show the Python fallback if none passes. |
+| **4. Ongoing monitoring** | Saved live run logs and built repeatable regression tests. | Periodically sample new outputs to check for reviewer drift. Track the pass-rate gains, latency, and API cost of each revision round once revisions are available. |
 
 [Netflix TechBlog: The Lifecycle of LLM-as-a-Judge](https://netflixtechblog.com/the-lifecycle-of-llm-as-a-judge-building-aligning-and-monitoring-at-scale-c95bd8283508)
 
