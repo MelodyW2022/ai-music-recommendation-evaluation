@@ -29,6 +29,8 @@ One case can count in multiple columns. Invalid JSON counts as both a format fai
 
 **Final evidence coverage: 15/15.** Each result carries all five expected scoring evidence fields, for a total of three cases × five fields.
 
+**What live testing surfaced.** An earlier reviewer accepted a draft that inferred a listener preference from a track attribute. Another review rejected a correct genre match after reading it as a claim that every preference matched. Both drafts became regression cases.
+
 [Detailed evaluation and live results](docs/grounding-evaluation.md) · [Offline evaluator output](assets/evaluation-metrics.svg)
 
 ## Run Locally
