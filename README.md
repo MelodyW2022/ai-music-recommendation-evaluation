@@ -1,181 +1,58 @@
 # Music RAG Reliability Benchmark
 
-## Summary
-
-This project extends my original **Music Recommender Simulation** from the earlier course modules. The original system used an 18-song CSV and a hand-written weighted scoring rule to recommend songs from a user's mood, genre, energy, acousticness, and valence preferences.
-
-The extended version turns that baseline into an applied AI reliability project. It adds offline RAG-style retrieval over a real Spotify-style 500-song sample, grounded explanations, optional Gemini explanation generation, guardrails, deterministic fallback behavior, and an evaluator that measures explanation reliability.
-
-Video walkthrough: https://youtu.be/QBHgzb6XJwI
-
-## What Changed From The Base Project
-
-- Kept the original 18-song mood recommender in `src/recommender.py` as the baseline.
-- Added real Spotify-style CSV loading in `src/data_loader.py`.
-- Added offline retrieval in `src/retriever.py`; retrieval is the source of truth.
-- Added deterministic grounded explanations in `src/explainer.py`.
-- Added optional Gemini wording in `src/llm_explainer.py`.
-- Added validation guardrails and fallback explanations in `src/guardrails.py`.
-- Added reliability metrics in `src/evaluator.py`.
-- Added a deterministic 500-row Hugging Face dataset sample in `data/spotify_tracks_sample_500.csv`.
+A Python music recommender that ranks tracks from a reproducible 500-track Spotify sample and evaluates whether AI-generated explanations are supported by retrieval evidence. The project extends an earlier 18-song weighted recommender.
 
 ## Architecture
 
-![System Architecture](assets/system_architecture.svg)
+![Offline retrieval and the single-review explanation flow](assets/system_architecture.svg)
 
-The system does not ask Gemini to choose songs. Retrieval ranks tracks first using genre and audio-feature similarity. Gemini is only allowed to rewrite explanations, and guardrails reject unsupported claims like lyrics, vocals, fan reactions, or chart status.
+1. **Retrieve and rank.** The Python retriever scores every track against the requested genre and target energy, acousticness, valence, and danceability. It returns the top tracks with their scores and evidence, including the actual and target feature values.
+2. **Generate and review.** In live mode, Gemini drafts one explanation from the retrieved metadata and evidence. Claude checks it once when configured. With only a Gemini key, a separate Gemini request performs that check. The reviewer checks each claim, including whether it implies a listening history the request does not provide.
+3. **Return the result.** A passing explanation is shown as written. Python builds an explanation from the same evidence when live generation is disabled, the output is unusable, or the review fails. The selected track and ranking come from retrieval.
 
-## Reliability Evidence
+The catalog is a deterministic sample of the Hugging Face Spotify Tracks Dataset. Regenerate it with `python3 scripts/create_spotify_sample.py`.
 
-### 1. Gemini Response + Guardrail Check
+[Retriever](src/retriever.py) · [Dataset sample](data/spotify_tracks_sample_500.csv) · [Model card](model_card.md)
 
-![Gemini response and guardrail check](assets/gemini-guardrail-check.png)
+## Evaluation
 
-### 2. Guardrail Fallback Example
+The evaluator tests **explanation reliability** on the first-ranked track for each predefined query. The offline run uses three scripted outcomes to check that a supported explanation passes, an unsupported claim triggers fallback, and malformed JSON triggers fallback.
 
-![Guardrail fallback example](assets/guardrail-fallback.png)
+| Metric | What it measures | Scripted result |
+| --- | --- | ---: |
+| Unsupported claim rate | Cases where the reviewer flags an unsupported or contradicted claim | 1/3 |
+| Fallback rate | Cases where the system substitutes the Python explanation | 2/3 |
+| Format failure rate | Cases where the generation cannot be parsed into a valid explanation | 1/3 |
+| Final evidence coverage | Expected evidence markers present in final explanations | 100% |
 
-### 3. Evaluation Metrics
+For live evaluation, I compared decisions from three reviewers on **eight saved Gemini candidates** against an evidence review. Claude agreed on **8/8**, Gemini on **7/8**, and Groq's GPT-OSS 20B on **3/8**. In the saved *Hot in It* case, Claude caught that the song's `electronic` tag was presented as the listener's preference even though the request specified `dance`. These results describe a small labeled sample.
 
-![Evaluation metrics](assets/evaluation-metrics.png)
+[Full evaluation report with six profiles, evidence, and model decisions](docs/grounding-evaluation.md) · [Offline evaluator output](assets/evaluation-metrics.svg)
 
-### 4. Automated Tests
-
-![Automated tests](assets/automated-tests.png)
-
-## Dataset
-
-The real-data path uses a deterministic 500-row sample from the Hugging Face Spotify Tracks Dataset by `maharshipandya`. The sample was created with:
-
-```bash
-python3 scripts/create_spotify_sample.py
-```
-
-The script keeps only the columns required by the loader:
-
-```text
-track_name, artists, album_name, track_genre, popularity,
-danceability, energy, acousticness, valence, tempo
-```
-
-## Setup
+## Run Locally
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -r requirements.txt
+
+python3 -m src.main demo      # Ranked tracks and retrieval evidence
+python3 -m src.main trace     # One simulated unsupported claim and its fallback
+python3 -m src.main evaluate  # Three scripted reliability cases
+python3 -m pytest -q          # Offline test suite
 ```
 
-Optional Gemini setup:
+For live generation, set `GEMINI_API_KEY`. Also set `ANTHROPIC_API_KEY` to select Claude as the reviewer.
 
 ```bash
-export GEMINI_API_KEY="your-key-here"
+python3 -m src.main trace --use-gemini
+python3 -m src.main evaluate --use-gemini --no-simulated-failures
 ```
 
-The project still runs without a Gemini key. If the key or SDK is unavailable, it uses deterministic fallback explanations.
+## Tests
 
-## Run The System
+The offline suite passed **50 tests**, with five opt-in live tests skipped. It covers retrieval, response parsing, reviewer selection, deterministic fallback, and evaluation metrics. A live integration run confirmed that Claude accepted a freshly generated *2002 - Acoustic* explanation and rejected the saved *Hot in It* candidate, triggering fallback.
 
-Run the end-to-end RAG demo:
+[Pytest output](assets/automated-tests.svg) · [Live review excerpt](assets/claude-review.svg) · [Live test commands](docs/grounding-evaluation.md#reproduce-the-live-tests) · [GitHub Actions log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44449037925/job/135308148597)
 
-```bash
-python3 -m src.main demo
-```
-
-Show one retrieval and guardrail trace:
-
-```bash
-python3 -m src.main trace
-```
-
-Run reliability evaluation:
-
-```bash
-python3 -m src.main evaluate
-```
-
-Run tests:
-
-```bash
-python3 -m pytest -q
-```
-
-Current verified result:
-
-```text
-42 passed
-```
-
-## Sample Outputs
-
-Demo output shows retrieval over the 500-song sample:
-
-```text
-RAG-grounded music recommendation demo
-Catalog size: 500
-1. Ishqam by Mika Singh;Ali Quli Mirza
-   Genre: pop
-   Score: 6.31
-   Evidence:
-   - genre matches preferred genre 'pop' (+2.00)
-   - energy closeness: 0.84 vs target 0.80 (+1.92)
-```
-
-Trace output shows guardrail fallback:
-
-```text
-Gemini mode: simulated unsafe raw response for reliability demo
-Raw response: {"explanation": "This track has emotional lyrics and rich vocals."}
-Used LLM output: False
-Fallback reason: Gemini explanation failed guardrails
-Guardrail unsupported terms: ['lyrics', 'vocals']
-Final safe explanation: Ishqam by Mika Singh;Ali Quli Mirza is recommended because...
-```
-
-Evaluation output summarizes reliability:
-
-```text
-Evaluation cases: 3
-Unsupported claim rate: 0.33
-Fallback rate: 0.67
-Format failure rate: 0.33
-Global evidence coverage: 1.00
-```
-
-## Reliability Design
-
-The reliability layer checks that explanations are grounded in retrieval evidence.
-
-Measured metrics:
-
-- `unsupported_claim_rate`: how often raw LLM-style output contains unsupported terms.
-- `fallback_rate`: how often the system replaces unsafe or malformed output.
-- `format_failure_rate`: how often raw output cannot be parsed as valid JSON.
-- `global_evidence_coverage`: how much required retrieval evidence is present in final safe outputs.
-
-The evaluator intentionally includes one safe response, one unsupported-claim response, and one malformed response. This makes the guardrail behavior visible without requiring a live Gemini call during grading.
-
-## Stretch Features
-
-This project includes two stretch-feature candidates:
-
-- **RAG Enhancement:** The original 18-song recommender was extended with offline retrieval over a deterministic 500-song Spotify-style dataset sample. Retrieval produces evidence strings that are used by explanations, guardrails, traces, and evaluator metrics.
-- **Test Harness / Evaluation Script:** `src/evaluator.py` and `python3 -m src.main evaluate` run predefined reliability cases and print unsupported-claim rate, fallback rate, format failure rate, and global evidence coverage.
-
-## Design Decisions
-
-- Retrieval is offline and deterministic so recommendations are reproducible.
-- Gemini is only a wording layer, not the recommender.
-- The original 18-song recommender remains separate from the real-data RAG path.
-- The real dataset is sampled deterministically instead of taking the first 500 rows.
-- Fallback explanations are deterministic so unsafe or malformed LLM output never breaks the demo.
-
-## Limitations
-
-The system uses metadata and audio features, not lyrics or audio waveforms. It cannot know personal taste, cultural context, vocal style, or lyrical meaning. The 500-song sample is useful for demonstration, but it is still a small slice of a much larger music catalog.
-
-## Reflection
-
-This project taught me that applied AI reliability is mostly about boundaries: deciding what the model is allowed to know, what it must prove with evidence, and what should happen when it fails. The biggest improvement over the baseline is that recommendations now come with retriever evidence and guardrail-checked explanations.
-
-I used AI as a pair-programming partner to design the RAG pipeline, tests, guardrails, and evaluator. A helpful AI suggestion was to keep Gemini as an explanation layer instead of letting it choose recommendations. A flawed suggestion was initially spending time polishing explanation wording before the evaluator and CLI were complete; under the deadline, the higher-value move was to finish the measurable reliability path first.
+[Original walkthrough](https://youtu.be/QBHgzb6XJwI)

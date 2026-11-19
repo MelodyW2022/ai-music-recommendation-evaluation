@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 862 574" width="862" height="574" role="img" aria-labelledby="title">
+  <title id="title">Offline reliability evaluation</title>
+  <rect width="862" height="574" rx="12" fill="#0f172a"/>
+  <rect width="862" height="44" rx="12" fill="#1e293b"/>
+  <text x="22" y="28" fill="#f8fafc" font-family="sans-serif" font-size="15" font-weight="600">Offline reliability evaluation</text>
+  <g font-family="monospace" font-size="15" xml:space="preserve">
+    <text x="22" y="70" fill="#86efac">$ python3 -m src.main evaluate</text>
+    <text x="22" y="91" fill="#e2e8f0"></text>
+    <text x="22" y="112" fill="#e2e8f0">Reliability evaluation</text>
+    <text x="22" y="133" fill="#e2e8f0">Catalog size: 500</text>
+    <text x="22" y="154" fill="#e2e8f0">Evaluation cases: 3</text>
+    <text x="22" y="175" fill="#e2e8f0">Unsupported claim rate: 0.33</text>
+    <text x="22" y="196" fill="#e2e8f0">Fallback rate: 0.67</text>
+    <text x="22" y="217" fill="#e2e8f0">Format failure rate: 0.33</text>
+    <text x="22" y="238" fill="#e2e8f0">Global evidence coverage: 1.00</text>
+    <text x="22" y="259" fill="#e2e8f0"></text>
+    <text x="22" y="280" fill="#e2e8f0">- high_energy_pop: Ishqam</text>
+    <text x="22" y="301" fill="#e2e8f0">  used_llm=True</text>
+    <text x="22" y="322" fill="#e2e8f0">  fallback_reason=none</text>
+    <text x="22" y="343" fill="#e2e8f0">  final_passed=True</text>
+    <text x="22" y="364" fill="#e2e8f0">- chill_acoustic: 2002 - Acoustic</text>
+    <text x="22" y="385" fill="#e2e8f0">  used_llm=False</text>
+    <text x="22" y="406" fill="#e2e8f0">  fallback_reason=Gemini explanation failed grounding check</text>
+    <text x="22" y="427" fill="#e2e8f0">  guardrail_finding=This track sounds like the songs you usually listen to. — The</text>
+    <text x="22" y="448" fill="#e2e8f0">evidence does not include the user&#x27;s listening history.</text>
+    <text x="22" y="469" fill="#e2e8f0">  final_passed=True</text>
+    <text x="22" y="490" fill="#e2e8f0">- intense_dance: Hot in It</text>
+    <text x="22" y="511" fill="#e2e8f0">  used_llm=False</text>
+    <text x="22" y="532" fill="#e2e8f0">  fallback_reason=Gemini response did not contain a valid explanation</text>
+    <text x="22" y="553" fill="#e2e8f0">  final_passed=True</text>
+  </g>
+</svg>

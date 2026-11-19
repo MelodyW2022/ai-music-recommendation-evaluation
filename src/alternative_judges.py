@@ -1,0 +1,107 @@
+from copy import deepcopy
+import json
+import os
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+
+from .guardrails import GuardrailViolation
+from .llm_explainer import (
+    JUDGE_INSTRUCTIONS,
+    JUDGE_RESPONSE_SCHEMA,
+    build_judge_payload,
+    parse_judge_violations,
+)
+from .retriever import RetrievalResult
+
+
+CLAUDE_JUDGE_MODEL = "claude-haiku-5-5"
+GROQ_JUDGE_MODEL = "openai/gpt-oss-20b"
+
+STRICT_JUDGE_SCHEMA = deepcopy(JUDGE_RESPONSE_SCHEMA)
+STRICT_JUDGE_SCHEMA["additionalProperties"] = False
+STRICT_JUDGE_SCHEMA["properties"]["claims"]["items"]["additionalProperties"] = False
+del STRICT_JUDGE_SCHEMA["properties"]["claims"]["minItems"]
+
+
+def _post_json(url: str, headers: dict, payload: dict) -> dict:
+    req = Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json", **headers},
+    )
+    try:
+        with urlopen(req, timeout=45) as response:
+            return json.load(response)
+    except HTTPError as exc:
+        body = exc.read(2048).decode(errors="replace")
+        for name, value in headers.items():
+            if name in ("x-api-key", "Authorization"):
+                body = body.replace(value.removeprefix("Bearer "), "[REDACTED]")
+        try:
+            detail = json.loads(body)["error"]["message"]
+        except (ValueError, KeyError, TypeError):
+            detail = body if "<html" not in body.lower() else exc.headers.get("server", "")
+        detail = " ".join(str(detail).split())[:240]
+        raise RuntimeError(f"{req.host} returned HTTP {exc.code}: {detail}") from None
+
+
+def review_with_claude(
+    explanation: str, result: RetrievalResult
+) -> list[GuardrailViolation]:
+    response = _post_json(
+        "https://api.anthropic.com/v1/messages",
+        {
+            "x-api-key": os.environ["ANTHROPIC_API_KEY"],
+            "anthropic-version": "2023-06-01",
+        },
+        {
+            "model": CLAUDE_JUDGE_MODEL,
+            "max_tokens": 2048,
+            "system": JUDGE_INSTRUCTIONS,
+            "messages": [
+                {"role": "user", "content": json.dumps(build_judge_payload(explanation, result))}
+            ],
+            "output_config": {
+                "format": {"type": "json_schema", "schema": STRICT_JUDGE_SCHEMA},
+            },
+        },
+    )
+    if response["stop_reason"] != "end_turn":
+        raise ValueError("Claude did not complete its grounding review")
+    text = "".join(block["text"] for block in response["content"] if block["type"] == "text")
+    return parse_judge_violations(text)
+
+
+def review_with_groq(
+    explanation: str, result: RetrievalResult
+) -> list[GuardrailViolation]:
+    from groq import APIStatusError, Groq
+
+    try:
+        with Groq(timeout=45, max_retries=2) as client:
+            response = client.chat.completions.create(
+                model=GROQ_JUDGE_MODEL,
+                max_completion_tokens=2048,
+                reasoning_effort="low",
+                messages=[
+                    {"role": "system", "content": JUDGE_INSTRUCTIONS},
+                    {"role": "user", "content": json.dumps(build_judge_payload(explanation, result))},
+                ],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "grounding_review",
+                        "strict": True,
+                        "schema": STRICT_JUDGE_SCHEMA,
+                    },
+                },
+            )
+    except APIStatusError as exc:
+        detail = str(exc.body or "").replace(os.environ["GROQ_API_KEY"], "[REDACTED]")
+        detail = " ".join(detail.split())[:240]
+        raise RuntimeError(f"api.groq.com returned HTTP {exc.status_code}: {detail}") from None
+
+    choice = response.choices[0]
+    if choice.finish_reason != "stop":
+        raise ValueError("Groq did not complete its grounding review")
+    return parse_judge_violations(choice.message.content or "")

@@ -29,22 +29,22 @@ The original project was explainable but small. This final version keeps that ba
 3. Retrieve top tracks using genre and audio-feature similarity.
 4. Carry evidence strings forward from retrieval.
 5. Generate deterministic explanations or optional Gemini explanations.
-6. Run guardrails against explanation text and evidence.
-7. Use deterministic fallback when Gemini output is malformed or unsupported.
+6. Check each usable Gemini explanation once against retrieval evidence. Use Claude when configured and a separate Gemini request otherwise.
+7. Use the deterministic explanation when there is no usable candidate or the reviewer rejects it or cannot return a valid review.
 8. Evaluate reliability with predefined benchmark queries.
 
 ## Data
 
 The real-data path uses a deterministic 500-row sample from the Hugging Face Spotify Tracks Dataset. The sample includes track name, artists, album name, genre, popularity, danceability, energy, acousticness, valence, and tempo.
 
-The dataset does not include lyrics, vocals, user listening history, reviews, or cultural context. For that reason, explanations are not allowed to claim anything about lyrics, vocals, fan popularity, live performance, or awards.
+The dataset does not include lyrics, vocals, user listening history, reviews, or cultural context. Each claim must be supported by the metadata or retrieval evidence supplied for the current request.
 
 ## Reliability Evaluation
 
 Current verified automated test result:
 
 ```text
-42 passed
+50 passed, 5 skipped
 ```
 
 The evaluator runs three predefined retrieval cases and reports:
@@ -63,14 +63,14 @@ Format failure rate: 0.33
 Global evidence coverage: 1.00
 ```
 
-This shows that unsafe raw LLM-style output is detected and replaced, while final explanations preserve evidence coverage.
+The offline demo replays simulated generation and judge responses to show how the pipeline handles rejection and invalid JSON.
 
 ## Guardrails
 
 Guardrails check for:
 
 - empty explanations
-- unsupported claims such as lyrics, vocals, fan favorite, chart-topping, or live performance
+- claims that the configured reviewer identifies as unsupported or contradicted by the evidence, including claims about habitual taste when the profile only provides request settings
 - missing retrieval evidence
 - incomplete evidence fields
 

@@ -2,12 +2,12 @@ import pytest
 
 from src.explainer import RecommendationExplanation
 from src.guardrails import (
+    GuardrailViolation,
     calculate_global_evidence_coverage,
     check_explanation,
     check_explanations,
     count_matched_evidence_markers,
     find_missing_evidence_markers,
-    find_unsupported_terms,
 )
 
 
@@ -40,22 +40,23 @@ def test_check_explanation_passes_grounded_output():
 
     assert report.passed is True
     assert report.violations == []
-    assert report.unsupported_terms == []
     assert report.evidence_count == 6
     assert report.matched_evidence_markers == 5
     assert report.total_evidence_markers == 5
     assert report.fallback_explanation is None
 
 
-def test_check_explanation_flags_unsupported_claims_and_builds_fallback():
-    explanation = make_explanation(
-        "Strong Match has emotional lyrics, rich vocals, and is a fan favorite."
+def test_check_explanation_uses_judge_findings_and_builds_fallback():
+    violation = GuardrailViolation(
+        code="unsupported_claim",
+        message="No listening history was provided.",
+        severity="error",
+    )
+    report = check_explanation(
+        make_explanation(), claim_violations=[violation]
     )
 
-    report = check_explanation(explanation)
-
     assert report.passed is False
-    assert report.unsupported_terms == ["lyrics", "vocals", "fan favorite"]
     assert [violation.code for violation in report.violations] == [
         "unsupported_claim"
     ]
@@ -104,15 +105,6 @@ def test_check_explanation_flags_incomplete_evidence_as_warning_without_fallback
     assert report.violations[0].severity == "warning"
     assert report.matched_evidence_markers == 2
     assert report.fallback_explanation is None
-
-
-def test_find_unsupported_terms_matches_words_and_phrases():
-    terms = find_unsupported_terms(
-        "The model called it chart-topping because of vocals and live performance."
-    )
-
-    assert terms == ["vocals", "chart-topping", "live performance"]
-    assert find_unsupported_terms("This has a lyrical mood.") == []
 
 
 def test_find_missing_evidence_markers_returns_uncovered_fields():

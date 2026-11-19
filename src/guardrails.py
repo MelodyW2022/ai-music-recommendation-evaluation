@@ -1,23 +1,8 @@
 from dataclasses import dataclass
-import re
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from .explainer import RecommendationExplanation
 
-
-UNSUPPORTED_CLAIM_TERMS = [
-    "lyrics",
-    "lyric",
-    "vocals",
-    "vocal",
-    "storytelling",
-    "fan favorite",
-    "critically acclaimed",
-    "award-winning",
-    "chart-topping",
-    "live performance",
-    "instrumentation",
-]
 
 REQUIRED_EVIDENCE_MARKERS = [
     "genre",
@@ -47,7 +32,6 @@ class GuardrailReport:
 
     passed: bool
     violations: List[GuardrailViolation]
-    unsupported_terms: List[str]
     evidence_count: int
     matched_evidence_markers: int
     total_evidence_markers: int
@@ -56,34 +40,17 @@ class GuardrailReport:
 
 def check_explanation(
     explanation: RecommendationExplanation,
+    *,
+    claim_violations: Sequence[GuardrailViolation] = (),
 ) -> GuardrailReport:
-    """
-    Check whether a generated recommendation explanation is grounded.
-
-    This guardrail is deterministic and offline. It does not judge whether the
-    recommendation is good; it checks whether the explanation stays within the
-    evidence available from retrieval.
-    """
-    violations: List[GuardrailViolation] = []
+    """Check local invariants and include any findings from the judge."""
+    violations = list(claim_violations)
 
     if not explanation.explanation.strip():
         violations.append(
             GuardrailViolation(
                 code="empty_explanation",
                 message="Explanation text is empty.",
-                severity="error",
-            )
-        )
-
-    unsupported_terms = find_unsupported_terms(explanation.explanation)
-    if unsupported_terms:
-        violations.append(
-            GuardrailViolation(
-                code="unsupported_claim",
-                message=(
-                    "Explanation includes claims that are not supported by "
-                    f"the available track evidence: {', '.join(unsupported_terms)}."
-                ),
                 severity="error",
             )
         )
@@ -117,7 +84,6 @@ def check_explanation(
     return GuardrailReport(
         passed=len(violations) == 0,
         violations=violations,
-        unsupported_terms=unsupported_terms,
         evidence_count=len(explanation.evidence),
         matched_evidence_markers=count_matched_evidence_markers(explanation.evidence),
         total_evidence_markers=len(REQUIRED_EVIDENCE_MARKERS),
@@ -132,22 +98,6 @@ def check_explanations(
     Check a list of recommendation explanations.
     """
     return [check_explanation(explanation) for explanation in explanations]
-
-
-def find_unsupported_terms(text: str) -> List[str]:
-    """
-    Find terms that imply unsupported knowledge.
-
-    These terms are blocked because the current system only has track metadata,
-    audio features, retriever evidence, and derived vibe tags.
-    """
-    normalized_text = text.lower()
-
-    return [
-        term
-        for term in UNSUPPORTED_CLAIM_TERMS
-        if _contains_term(normalized_text, term)
-    ]
 
 
 def find_missing_evidence_markers(evidence: List[str]) -> List[str]:
@@ -200,11 +150,3 @@ def build_fallback_explanation(
         "grounded in the retrieved genre, audio-feature similarity, and any "
         "derived vibe tags shown in the evidence."
     )
-
-
-def _contains_term(text: str, term: str) -> bool:
-    """
-    Match blocked terms as words or phrases instead of arbitrary substrings.
-    """
-    pattern = rf"\b{re.escape(term)}\b"
-    return re.search(pattern, text) is not None

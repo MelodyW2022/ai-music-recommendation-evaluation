@@ -1,12 +1,16 @@
+import json
+
 import pytest
 
 from src.data_loader import TrackRecord
 from src.evaluator import (
-    FORMAT_FAILURE_REASON,
-    GUARDRAIL_FAILURE_REASON,
+    PREDEFINED_CASES,
+    SIMULATED_GEMINI_CASES,
+    SIMULATED_UNSUPPORTED_CASE,
     evaluate_records,
-    explain_from_raw_response,
+    explain_simulated_response,
 )
+from src.llm_explainer import FORMAT_FAILURE_REASON, GUARDRAIL_FAILURE_REASON
 from src.retriever import RetrievalQuery, retrieve_tracks
 
 
@@ -55,7 +59,7 @@ def records():
     ]
 
 
-def test_explain_from_raw_response_accepts_safe_json(records):
+def test_explain_simulated_response_accepts_safe_json(records):
     retrieval_result = retrieve_tracks(
         RetrievalQuery(
             preferred_genre="pop",
@@ -68,9 +72,9 @@ def test_explain_from_raw_response_accepts_safe_json(records):
         k=1,
     )[0]
 
-    result = explain_from_raw_response(
+    result = explain_simulated_response(
         retrieval_result,
-        '{"explanation": "This track matches using retrieved genre and audio-feature evidence."}',
+        *SIMULATED_GEMINI_CASES[0],
     )
 
     assert result.used_llm is True
@@ -79,7 +83,7 @@ def test_explain_from_raw_response_accepts_safe_json(records):
     assert result.guardrail_report.passed is True
 
 
-def test_explain_from_raw_response_falls_back_on_unsupported_claims(records):
+def test_explain_simulated_response_falls_back_on_unsupported_claims(records):
     retrieval_result = retrieve_tracks(
         RetrievalQuery(
             preferred_genre="pop",
@@ -92,19 +96,19 @@ def test_explain_from_raw_response_falls_back_on_unsupported_claims(records):
         k=1,
     )[0]
 
-    result = explain_from_raw_response(
+    result = explain_simulated_response(
         retrieval_result,
-        '{"explanation": "This track has emotional lyrics and rich vocals."}',
+        *SIMULATED_UNSUPPORTED_CASE,
     )
 
     assert result.used_llm is False
     assert result.fallback_reason == GUARDRAIL_FAILURE_REASON
     assert result.guardrail_report is not None
-    assert result.guardrail_report.unsupported_terms == ["lyrics", "vocals"]
+    assert result.guardrail_report.violations[0].code == "unsupported_claim"
     assert "Pop Match by Test Artist" in result.explanation.explanation
 
 
-def test_explain_from_raw_response_falls_back_on_format_failure(records):
+def test_explain_simulated_response_falls_back_on_format_failure(records):
     retrieval_result = retrieve_tracks(
         RetrievalQuery(
             preferred_genre="pop",
@@ -117,11 +121,30 @@ def test_explain_from_raw_response_falls_back_on_format_failure(records):
         k=1,
     )[0]
 
-    result = explain_from_raw_response(retrieval_result, "not json")
+    result = explain_simulated_response(retrieval_result, "not json", "")
 
     assert result.used_llm is False
     assert result.fallback_reason == FORMAT_FAILURE_REASON
     assert result.guardrail_report is None
+
+
+def test_explain_simulated_response_falls_back_on_contradicted_claim(records):
+    retrieval_result = retrieve_tracks(PREDEFINED_CASES[0].query, records, k=1)[0]
+    claim = "This song is a classical track."
+    raw_response = json.dumps({"explanation": claim})
+    raw_review = json.dumps({"claims": [{
+        "claim": claim,
+        "status": "contradicted",
+        "reason": "The retrieved genre is pop.",
+    }]})
+
+    result = explain_simulated_response(retrieval_result, raw_response, raw_review)
+
+    assert result.used_llm is False
+    assert result.fallback_reason == GUARDRAIL_FAILURE_REASON
+    assert result.guardrail_report is not None
+    assert result.guardrail_report.violations[0].code == "contradicted_claim"
+    assert claim not in result.explanation.explanation
 
 
 def test_evaluate_records_reports_reliability_metrics(records):

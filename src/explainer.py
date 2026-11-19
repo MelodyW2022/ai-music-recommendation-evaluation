@@ -29,8 +29,8 @@ def explain_recommendation(result: RetrievalResult) -> RecommendationExplanation
     vibe_summary = _format_vibe_tags(track.vibe_tags)
 
     explanation = (
-        f"{track.track_name} by {track.artist_name} is recommended because "
-        f"its measured audio features are close to the requested profile. "
+        f"{track.track_name} by {track.artist_name} was selected by the recommender. "
+        f"Here is how it compares with your request. "
         f"{evidence_summary} "
         f"Derived vibe tags for readability: {vibe_summary}."
     )
