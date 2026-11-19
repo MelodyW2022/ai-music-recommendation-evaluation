@@ -16,16 +16,18 @@ The catalog is a deterministic sample of the Hugging Face Spotify Tracks Dataset
 
 ## Evaluation
 
-Run `python3 -m src.main evaluate` to check how the explanation pipeline handles three preset inputs. Each input uses the top-ranked track for one profile. One explanation passes, one is flagged for an unsupported claim, and one contains invalid JSON. Both failures display the Python fallback.
+Run `python3 -m src.main evaluate` to check three preset cases, one top-ranked track per profile. A `1` means the case counts toward that metric.
 
-| Metric | How it is counted | Offline result |
-| --- | --- | ---: |
-| Unsupported claim rate | Evaluated cases with at least one claim the reviewer flags as unsupported or contradicted | 1 of 3 |
-| Fallback rate | Evaluated cases that display a Python-generated explanation after a failure | 2 of 3 |
-| Format failure rate | Evaluated cases where the generated response cannot be parsed as a valid explanation | 1 of 3 |
-| Final evidence coverage | Expected scoring fields present in the evidence attached to the final results | 15 of 15 |
+| Preset case | Unsupported claim | Fallback | Format failure |
+| --- | ---: | ---: | ---: |
+| Supported explanation is shown | 0 | 0 | 0 |
+| Reviewer flags a claim, so the app shows the Python fallback | 1 | 1 | 0 |
+| Invalid JSON triggers the Python fallback | 0 | 1 | 1 |
+| **Rate across the three cases** | **1/3** | **2/3** | **1/3** |
 
-The invalid-JSON case counts toward both format failure and fallback. Each final result is expected to carry five evidence fields. These figures verify the preset cases. See the full report for live runs, reviewer comparisons, and individual examples.
+One case can count in multiple columns. Invalid JSON counts as both a format failure and a fallback.
+
+**Final evidence coverage: 15/15.** Each result carries all five expected scoring evidence fields, for a total of three cases × five fields.
 
 [Detailed evaluation and live results](docs/grounding-evaluation.md) · [Offline evaluator output](assets/evaluation-metrics.svg)
 
