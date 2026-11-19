@@ -4,7 +4,7 @@
 
 This report records the six preference profiles, their generated explanations, the retrieved evidence, and the reasons for accepting or rejecting each candidate. It also records the eight-candidate reviewer comparison and how to reproduce the live checks.
 
-The recorded evidence and results below come from the earlier version that included inferred track descriptions. Current runs use only song identity, genre, score, and the five scoring comparisons. The logged outputs remain as originally recorded.
+The original six-profile evaluation used an earlier version that included inferred track descriptions. Current runs use only song identity, genre, score, and the five scoring comparisons. The logged outputs remain as originally recorded.
 
 ## Live Gemini Grounding Results
 
@@ -264,6 +264,22 @@ The initial direct HTTP request to Groq received a 403. The official Groq SDK co
 [Gemini and Claude job log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44430799485/job/135247369947) · [Completed Groq job log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44431747230/job/135250544549)
 
 To reproduce the comparison in GitHub Actions, choose the `run-judge-comparison` suite after setting `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, and `GROQ_API_KEY` in repository Actions Secrets. Choose `run-groq-diagnostic` to check the same cases against Groq alone.
+
+## Follow-up Claude regressions
+
+These tests ran on November 19, 2026 with the five scoring comparisons and the original track metadata. They reused two profiles from the six-profile evaluation above. The broader evaluation remains a historical record of the version that included inferred track tags.
+
+The original tag-free run rejected a valid *2002 - Acoustic* draft. Its wording scoped “perfectly” to the acoustic genre, while the judge read it as a claim that every feature matched. The judge also reported “your favorite genre,” although the draft said “your preferred acoustic genre.” [Original live log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44576702512/job/135746001393)
+
+| Change | What was checked | Result |
+| --- | --- | --- |
+| Scope exact-match wording to the named feature | The original *2002 - Acoustic* draft said it “aligns perfectly with your preferred acoustic genre.” The track genre and requested genre were both `acoustic`. | Live Claude passed the original draft. |
+| Check an explicit overall claim | On that same track and evidence, the saved comparison draft said “This track matches all your preferences perfectly.” Valence was 0.61 against a target of 0.50. | Live Claude rejected the claim and the app displayed the Python fallback. |
+| Check the original unsupported preference case | The saved *Hot in It* draft claimed a preference for electronic music. Its profile selected `dance`. | Live Claude rejected the draft and the app displayed the Python fallback. |
+
+The first run exercised the scope fix with the real Gemini and Claude APIs and passed the integration test. It also passed 46 offline tests. After adding verbatim quote validation, the second live run passed the same saved cases and accepted a freshly generated *2002 - Acoustic* draft. The offline suite passed 47 tests. [Scope fix log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44578048459/job/135750808933) · [Quote validation log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44579489429/job/135755945628)
+
+The fabricated-quote case is a deterministic offline regression: a mocked Claude response cites “your favorite genre” while the candidate contains “your preferred acoustic genre.” Python rejects the review as an invalid quote and displays the fallback. The live run checks compatibility with real Claude responses. It does not depend on Claude producing a fabricated quote again.
 
 ## Reproduce the Live Tests
 
