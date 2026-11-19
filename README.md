@@ -23,7 +23,7 @@ Video walkthrough: https://youtu.be/QBHgzb6XJwI
 
 ![System Architecture](assets/system_architecture.svg)
 
-Retrieval ranks tracks using genre and audio-feature similarity. In live mode, Gemini writes the explanation and a separate Gemini request checks its claims against the retrieved evidence. When `ANTHROPIC_API_KEY` is set, Claude Haiku 5.5 reviews the same candidate and evidence after the Gemini check, including when Gemini rejects it or its review is unavailable. Claude makes the final decision. If there is no usable candidate, or the final reviewer rejects it or cannot return a valid review, the system uses the deterministic explanation. Without an Anthropic key, Gemini is the final reviewer. The ranked recommendation is still returned. Offline examples replay simulated responses through the review and fallback logic.
+Retrieval ranks tracks using genre and audio-feature similarity. In live mode, Gemini writes a candidate explanation once. When `ANTHROPIC_API_KEY` is set, Claude Haiku 5.5 checks that candidate against the retrieved evidence. Otherwise, a separate Gemini request checks it. The system displays the candidate when the review passes. If no usable candidate is generated or the reviewer rejects it or cannot return a valid review, the system displays a deterministic explanation based on the retrieved evidence. The ranked recommendation is still returned. Offline examples replay simulated responses through the review and fallback logic.
 
 ## Dataset
 
@@ -93,7 +93,7 @@ python3 -m pytest -q
 Current verified result:
 
 ```text
-52 passed, 5 skipped
+50 passed, 5 skipped
 ```
 
 With a Gemini API key set, run the live checks in separate batches and print the responses:
@@ -108,16 +108,14 @@ RUN_LIVE_GEMINI_TESTS=1 python3 -m pytest -q -s -rs tests/test_llm_explainer.py 
 
 One test sends a handwritten claim about the user's listening history through the real judge and requires a rejection and template fallback. The replay test gives the saved candidates to the judge. The generation test uses the normal prompt with six profiles and prints each raw output, its evidence, the judge's findings, and the final text.
 
-With both keys set, run the live test for the Claude second-review path:
+With both keys set, run the live test for the Gemini generation and Claude review path:
 
 ```bash
 RUN_LIVE_GEMINI_TESTS=1 RUN_LIVE_CLAUDE_REVIEW=1 \
-  python3 -m pytest -q -s -rs tests/test_llm_explainer.py -k live_claude_second_review
+  python3 -m pytest -q -s -rs tests/test_llm_explainer.py -k live_claude_review
 ```
 
-This test uses saved candidates. The supported acoustic explanation goes through both live reviewers. For the *Hot in It* follow-up, the test replays Gemini's observed acceptance and requires the live Claude reviewer to reject the unsupported preference claim so the application uses the deterministic explanation. A third check simulates an initial Gemini rejection of the supported acoustic explanation and verifies that a live Claude approval keeps the original explanation. On the draft PR, the `run-claude-closeout` label runs the offline suite and this live check.
-
-The closeout run passed all 50 offline tests and the live two-reviewer test. Both reviewers accepted *2002 - Acoustic*. The live Claude review rejected the unsupported electronic-music preference on *Hot in It* and the application used the deterministic explanation. [Closeout job log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44434043669/job/135258296982)
+This test makes a real Gemini generation request followed by a real Claude review. It also sends two saved candidates to Claude. The supported *2002 - Acoustic* explanation should pass. The *Hot in It* explanation should be rejected because it treats the track's electronic tag as a user preference, so the application should display the deterministic explanation. On the draft PR, the `run-claude-closeout` label runs the offline suite and this live check.
 
 ## Live Gemini Grounding Results
 
@@ -351,7 +349,7 @@ The retrieved tracks and evidence were the same as in the baseline. Two initial 
 
 ### Live comparison across Gemini, Claude, and Groq
 
-All three providers received the same judge instructions, candidate texts, track metadata, and retrieval evidence. This run used the six frozen baseline candidates and the two saved follow-up candidates. The expected decisions reflect the evidence review for this set. The results motivated the optional Claude second review. Groq is used in the comparison.
+All three providers received the same judge instructions, candidate texts, track metadata, and retrieval evidence. This run used the six frozen baseline candidates and the two saved follow-up candidates. The expected decisions reflect the evidence review for this set. The results motivated using Claude as the reviewer when configured. Groq is used in the comparison.
 
 | Candidate | Expected | Gemini Flash-Lite | Claude Haiku 5.5 | Groq GPT-OSS 20B |
 | --- | --- | --- | --- | --- |
