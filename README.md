@@ -18,12 +18,12 @@ The catalog is a deterministic sample of the Hugging Face Spotify Tracks Dataset
 
 Run `python3 -m src.main evaluate` to check three preset cases, one top-ranked track per profile. A `1` means the case counts toward that metric.
 
-| Preset case | Unsupported claim | Fallback | Format failure |
+| Preset case | Unsupported claim | Format failure | Fallback |
 | --- | ---: | ---: | ---: |
 | Supported explanation is shown | 0 | 0 | 0 |
-| Reviewer flags a claim, so the app shows the Python fallback | 1 | 1 | 0 |
+| Reviewer flags a claim, so the app shows the Python fallback | 1 | 0 | 1 |
 | Invalid JSON triggers the Python fallback | 0 | 1 | 1 |
-| **Rate across the three cases** | **1/3** | **2/3** | **1/3** |
+| **Rate across the three cases** | **1/3** | **1/3** | **2/3** |
 
 One case can count in multiple columns. Invalid JSON counts as both a format failure and a fallback.
 
