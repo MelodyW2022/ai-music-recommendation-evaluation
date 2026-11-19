@@ -171,15 +171,10 @@ def review_gemini_response(
     )
 
 
-def call_judge(
-    explanation: str, result: RetrievalResult, model: str
-) -> List[GuardrailViolation]:
-    """Run a separate Gemini request to verify the generated claims."""
-    from google import genai
-    from google.genai import types
-
+def build_judge_payload(explanation: str, result: RetrievalResult) -> dict:
+    """Use the same candidate and retrieval evidence for every reviewer."""
     track = result.track
-    payload = {
+    return {
         "explanation": explanation,
         "track": {
             "name": track.track_name,
@@ -190,10 +185,19 @@ def call_judge(
         },
         "evidence": result.evidence,
     }
+
+
+def call_judge(
+    explanation: str, result: RetrievalResult, model: str
+) -> List[GuardrailViolation]:
+    """Run a separate Gemini request to verify the generated claims."""
+    from google import genai
+    from google.genai import types
+
     with genai.Client(http_options=types.HttpOptions(timeout=15000)) as client:
         response = client.models.generate_content(
             model=model,
-            contents=json.dumps(payload),
+            contents=json.dumps(build_judge_payload(explanation, result)),
             config=types.GenerateContentConfig(
                 system_instruction=JUDGE_INSTRUCTIONS,
                 temperature=0,
