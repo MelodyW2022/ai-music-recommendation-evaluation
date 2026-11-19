@@ -23,7 +23,7 @@ Video walkthrough: https://youtu.be/QBHgzb6XJwI
 
 ![System Architecture](assets/system_architecture.svg)
 
-Retrieval ranks tracks using genre and audio-feature similarity. In live mode, Gemini writes the explanation and a separate Gemini request checks its claims against the retrieved evidence. When `ANTHROPIC_API_KEY` is set, Claude Haiku 5.5 reviews the same candidate and evidence after Gemini accepts it. A rejection, invalid review, or unavailable configured reviewer triggers the deterministic explanation. The ranked recommendation is still returned. Offline examples replay simulated responses through the review and fallback logic.
+Retrieval ranks tracks using genre and audio-feature similarity. In live mode, Gemini writes the explanation and a separate Gemini request checks its claims against the retrieved evidence. When `ANTHROPIC_API_KEY` is set, Claude Haiku 5.5 reviews the same candidate and evidence after the Gemini check, including when Gemini rejects it or its review is unavailable. Claude makes the final decision. If there is no usable candidate, or the final reviewer rejects it or cannot return a valid review, the system uses the deterministic explanation. Without an Anthropic key, Gemini is the final reviewer. The ranked recommendation is still returned. Offline examples replay simulated responses through the review and fallback logic.
 
 ## Dataset
 
@@ -93,7 +93,7 @@ python3 -m pytest -q
 Current verified result:
 
 ```text
-50 passed, 5 skipped
+52 passed, 5 skipped
 ```
 
 With a Gemini API key set, run the live checks in separate batches and print the responses:
@@ -115,7 +115,7 @@ RUN_LIVE_GEMINI_TESTS=1 RUN_LIVE_CLAUDE_REVIEW=1 \
   python3 -m pytest -q -s -rs tests/test_llm_explainer.py -k live_claude_second_review
 ```
 
-This test uses saved candidates. The supported acoustic explanation goes through both live reviewers. For the *Hot in It* follow-up, the test replays Gemini's observed acceptance and requires the live Claude reviewer to reject the unsupported preference claim so the application uses the deterministic explanation. On the draft PR, the `run-claude-closeout` label runs the offline suite and this live check.
+This test uses saved candidates. The supported acoustic explanation goes through both live reviewers. For the *Hot in It* follow-up, the test replays Gemini's observed acceptance and requires the live Claude reviewer to reject the unsupported preference claim so the application uses the deterministic explanation. A third check simulates an initial Gemini rejection of the supported acoustic explanation and verifies that a live Claude approval keeps the original explanation. On the draft PR, the `run-claude-closeout` label runs the offline suite and this live check.
 
 The closeout run passed all 50 offline tests and the live two-reviewer test. Both reviewers accepted *2002 - Acoustic*. The live Claude review rejected the unsupported electronic-music preference on *Hot in It* and the application used the deterministic explanation. [Closeout job log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44434043669/job/135258296982)
 
