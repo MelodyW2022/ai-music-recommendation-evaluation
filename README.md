@@ -16,18 +16,18 @@ The catalog is a deterministic sample of the Hugging Face Spotify Tracks Dataset
 
 ## Evaluation
 
-The evaluator tests **explanation reliability** on the first-ranked track for each predefined query. The offline run uses three scripted outcomes to check that a supported explanation passes, an unsupported claim triggers fallback, and malformed JSON triggers fallback.
+Run `python3 -m src.main evaluate` to check how the explanation pipeline handles three preset inputs. Each input uses the top-ranked track for one profile. One explanation passes, one is flagged for an unsupported claim, and one contains invalid JSON. Both failures display the Python fallback.
 
-| Metric | What it measures | Scripted result |
+| Metric | How it is counted | Offline result |
 | --- | --- | ---: |
-| Unsupported claim rate | Cases where the reviewer flags an unsupported or contradicted claim | 1/3 |
-| Fallback rate | Cases where the system substitutes the Python explanation | 2/3 |
-| Format failure rate | Cases where the generation cannot be parsed into a valid explanation | 1/3 |
-| Final evidence coverage | Expected evidence markers present in final explanations | 100% |
+| Unsupported claim rate | Evaluated cases with at least one claim the reviewer flags as unsupported or contradicted | 1 of 3 |
+| Fallback rate | Evaluated cases that display a Python-generated explanation after a failure | 2 of 3 |
+| Format failure rate | Evaluated cases where the generated response cannot be parsed as a valid explanation | 1 of 3 |
+| Final evidence coverage | Expected scoring fields present in the evidence attached to the final results | 15 of 15 |
 
-In the original live evaluation, before removing inferred track descriptors, I compared decisions from three reviewers on **eight saved Gemini candidates** against an evidence review. Claude agreed on **8/8**, Gemini on **7/8**, and Groq's GPT-OSS 20B on **3/8**. In the saved *Hot in It* case, Claude caught that the song's `electronic` tag was presented as the listener's preference even though the request specified `dance`. These results describe a small labeled sample.
+The invalid-JSON case counts toward both format failure and fallback. Each final result is expected to carry five evidence fields. These figures verify the preset cases. See the full report for live runs, reviewer comparisons, and individual examples.
 
-[Full evaluation report with six profiles, evidence, and model decisions](docs/grounding-evaluation.md) · [Offline evaluator output](assets/evaluation-metrics.svg)
+[Detailed evaluation and live results](docs/grounding-evaluation.md) · [Offline evaluator output](assets/evaluation-metrics.svg)
 
 ## Run Locally
 
@@ -38,7 +38,7 @@ python3 -m pip install -r requirements.txt
 
 python3 -m src.main demo      # Ranked tracks and retrieval evidence
 python3 -m src.main trace     # One simulated unsupported claim and its fallback
-python3 -m src.main evaluate  # Three scripted reliability cases
+python3 -m src.main evaluate  # Three preset reliability cases
 python3 -m pytest -q          # Offline test suite
 ```
 
@@ -51,8 +51,9 @@ python3 -m src.main evaluate --use-gemini --no-simulated-failures
 
 ## Tests
 
-The offline suite passed **47 tests**, with five opt-in live tests skipped. It covers retrieval, response parsing, reviewer selection, deterministic fallback, and evaluation metrics. An earlier live integration run confirmed that Claude accepted a freshly generated *2002 - Acoustic* explanation and rejected the saved *Hot in It* candidate, triggering fallback.
+- **Offline** — Run `python3 -m pytest -q` without API keys. The suite covers ranking, evidence handling, response parsing, reviewer routing, quote validation, fallback, and all four evaluation metrics. The latest run passed **47 tests**.
+- **Live** — Opt-in tests exercise generation and review through real APIs, including when the app should accept an explanation or show the fallback.
 
-[Pytest output](assets/automated-tests.svg) · [Live review excerpt](assets/claude-review.svg) · [Live test commands](docs/grounding-evaluation.md#reproduce-the-live-tests) · [GitHub Actions log](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44449037925/job/135308148597)
+[Offline test output](assets/automated-tests.svg) · [How to run the live tests](docs/grounding-evaluation.md#reproduce-the-live-tests)
 
 [Original walkthrough](https://youtu.be/QBHgzb6XJwI)
