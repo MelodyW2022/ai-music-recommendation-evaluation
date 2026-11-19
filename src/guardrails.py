@@ -147,6 +147,5 @@ def build_fallback_explanation(
     return (
         f"{explanation.track_name} by {explanation.artist_name} was retrieved "
         f"with a score of {explanation.score:.2f}. This recommendation is "
-        "grounded in the retrieved genre, audio-feature similarity, and any "
-        "derived vibe tags shown in the evidence."
+        "based on the track genre and audio-feature comparisons."
     )

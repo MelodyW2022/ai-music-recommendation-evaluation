@@ -45,9 +45,10 @@ The current request does not establish favorites, listening habits, past
 behavior, or sounds the user already enjoys. Treat "your favorite genre" and
 "the sound you enjoy" as unsupported when the evidence only describes this
 request. Evaluate those implications separately even if the track description
-is accurate. Derived vibe tags describe the track and do not establish the
-user's personal tastes. Do not require listening history for a statement
-limited to the preferences and target values in the current request.
+is accurate. The track's audio features do not establish its genre or a
+listener's personal tastes. Use the explicit genre field for genre claims.
+Do not require listening history for a statement limited to the preferences
+and target values in the current request.
 
 Return JSON with a nonempty "claims" array. Each entry must contain the claim,
 its status ("supported", "unsupported", or "contradicted"), and a short reason
@@ -193,7 +194,6 @@ def build_judge_payload(explanation: str, result: RetrievalResult) -> dict:
             "artist": track.artist_name,
             "genre": track.genre,
             "retrieval_score": round(result.score, 2),
-            "derived_vibe_tags": track.vibe_tags,
         },
         "evidence": result.evidence,
     }
@@ -254,20 +254,21 @@ def build_gemini_prompt(result: RetrievalResult) -> str:
     """
     track = result.track
     evidence_summary = "; ".join(result.evidence)
-    vibe_tags = ", ".join(track.vibe_tags) if track.vibe_tags else "none"
 
     return f"""
 Write one grounded music recommendation explanation.
 
 Use only the track metadata and retrieval evidence below. Explain the match
 against the user's current preferences and make only claims these inputs support.
+Use the explicit genre field for genre claims. The audio-feature values can
+describe the track and its fit for this request.
 
 Return exactly one valid JSON object on one line with this shape:
 {{"explanation": "one concise explanation, 1-2 sentences"}}
 
 Track:
 name={track.track_name}; artist={track.artist_name}; genre={track.genre};
-retrieval_score={result.score:.2f}; derived_vibe_tags={vibe_tags}
+retrieval_score={result.score:.2f}
 
 Evidence:
 {evidence_summary}

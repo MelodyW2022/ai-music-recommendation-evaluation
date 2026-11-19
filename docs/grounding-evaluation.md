@@ -4,6 +4,8 @@
 
 This report records the six preference profiles, their generated explanations, the retrieved evidence, and the reasons for accepting or rejecting each candidate. It also records the eight-candidate reviewer comparison and how to reproduce the live checks.
 
+The recorded evidence and results below come from the earlier version that included inferred track descriptions. Current runs use only song identity, genre, score, and the five scoring comparisons. The logged outputs remain as originally recorded.
+
 ## Live Gemini Grounding Results
 
 Both live tests passed on November 18, 2026 with `gemini-3.1-flash-lite`. The tests used *Ishqam*, a pop track with an energy score of `0.84` against the user's target of `0.80`. [GitHub Actions run](https://github.com/MelodyW2022/ai-music-recommendation-evaluation/actions/runs/44421411937/job/135215064365)

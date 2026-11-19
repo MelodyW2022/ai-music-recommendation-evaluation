@@ -55,9 +55,6 @@ def retrieve_tracks(
 def score_track(query: RetrievalQuery, record: TrackRecord) -> Tuple[float, List[str]]:
     """
     Score one track against the query and collect retrieval evidence.
-
-    Vibe tags are explanation evidence only, not extra scoring signals, to avoid
-    double-counting derived labels and their source features.
     """
     score = 0.0
     evidence: List[str] = []
@@ -99,8 +96,6 @@ def score_track(query: RetrievalQuery, record: TrackRecord) -> Tuple[float, List
     evidence.append(
         f"danceability closeness: {record.danceability:.2f} vs target {query.target_danceability:.2f} (+{danceability_points:.2f})"
     )
-
-    evidence.append(f"derived vibe tags for explanation: {', '.join(record.vibe_tags)}")
 
     return score, evidence
 
