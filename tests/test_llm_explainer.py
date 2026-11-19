@@ -357,9 +357,9 @@ def test_live_judge_comparison(live_gemini_records):
         for case in LIVE_GENERATION_CASES
         if case.name in FOLLOWUP_CANDIDATES
     ]
-    if os.getenv("JUDGE_COMPARISON_MODE") == "run-groq-diagnostic":
+    groq_only = os.getenv("JUDGE_COMPARISON_MODE") == "run-groq-diagnostic"
+    if groq_only:
         reviewers = ((GROQ_JUDGE_MODEL, review_with_groq),)
-        baseline, followups = baseline[:1], []
     failures = []
     for batch, cases in (("baseline", baseline), ("followup", followups)):
         for case, candidate, expected in cases:
@@ -384,6 +384,8 @@ def test_live_judge_comparison(live_gemini_records):
                         findings=[finding.message for finding in findings],
                     )
                 print("Judge comparison:", json.dumps(verdict, ensure_ascii=False))
+                if groq_only and failures:
+                    pytest.fail(failures[-1])
 
     assert not failures, "\n".join(failures)
 
