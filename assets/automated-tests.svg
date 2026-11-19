@@ -1,21 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 862 343" width="862" height="343" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 862 322" width="862" height="322" role="img" aria-labelledby="title">
   <title id="title">Offline pytest run</title>
-  <rect width="862" height="343" rx="12" fill="#0f172a"/>
+  <rect width="862" height="322" rx="12" fill="#0f172a"/>
   <rect width="862" height="44" rx="12" fill="#1e293b"/>
   <text x="22" y="28" fill="#f8fafc" font-family="sans-serif" font-size="15" font-weight="600">Offline pytest run</text>
   <g font-family="monospace" font-size="15" xml:space="preserve">
     <text x="22" y="70" fill="#86efac">$ python3 -m pytest -ra --color=no</text>
     <text x="22" y="91" fill="#e2e8f0"></text>
-    <text x="22" y="112" fill="#e2e8f0">collected 55 items</text>
+    <text x="22" y="112" fill="#e2e8f0">collected 52 items</text>
     <text x="22" y="133" fill="#e2e8f0">tests/test_create_spotify_sample.py ..                                   [  3%]</text>
-    <text x="22" y="154" fill="#e2e8f0">tests/test_data_loader.py .......                                        [ 16%]</text>
-    <text x="22" y="175" fill="#e2e8f0">tests/test_evaluator.py .....                                            [ 25%]</text>
-    <text x="22" y="196" fill="#e2e8f0">tests/test_explainer.py .....                                            [ 34%]</text>
-    <text x="22" y="217" fill="#e2e8f0">tests/test_guardrails.py ..........                                      [ 52%]</text>
-    <text x="22" y="238" fill="#e2e8f0">tests/test_llm_explainer.py .......ssss....s....                         [ 89%]</text>
-    <text x="22" y="259" fill="#e2e8f0">tests/test_recommender.py ..                                             [ 92%]</text>
-    <text x="22" y="280" fill="#e2e8f0">tests/test_retriever.py ....                                             [100%]</text>
-    <text x="22" y="301" fill="#e2e8f0"></text>
-    <text x="22" y="322" fill="#86efac">50 passed, 5 skipped in 0.72s</text>
+    <text x="22" y="154" fill="#e2e8f0">tests/test_data_loader.py ....                                           [ 11%]</text>
+    <text x="22" y="175" fill="#e2e8f0">tests/test_evaluator.py .....                                            [ 21%]</text>
+    <text x="22" y="196" fill="#e2e8f0">tests/test_explainer.py .....                                            [ 30%]</text>
+    <text x="22" y="217" fill="#e2e8f0">tests/test_guardrails.py ..........                                      [ 50%]</text>
+    <text x="22" y="238" fill="#e2e8f0">tests/test_llm_explainer.py .........ssss....s....                       [ 92%]</text>
+    <text x="22" y="259" fill="#e2e8f0">tests/test_retriever.py ....                                             [100%]</text>
+    <text x="22" y="280" fill="#e2e8f0"></text>
+    <text x="22" y="301" fill="#86efac">47 passed, 5 skipped in 0.88s</text>
   </g>
 </svg>

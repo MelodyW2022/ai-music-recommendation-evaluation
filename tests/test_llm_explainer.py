@@ -62,7 +62,6 @@ def retrieval_result() -> RetrievalResult:
         artist_name="Test Artist",
         album_name="Test Album",
         genre="pop",
-        vibe_tags=["high_energy", "positive", "danceable"],
         popularity=50.0,
         danceability=0.81,
         energy=0.82,
@@ -80,7 +79,6 @@ def retrieval_result() -> RetrievalResult:
             "acousticness closeness: 0.18 vs target 0.20 (+0.98)",
             "valence closeness: 0.76 vs target 0.75 (+0.99)",
             "danceability closeness: 0.81 vs target 0.80 (+0.74)",
-            "derived vibe tags for explanation: high_energy, positive, danceable",
         ],
     )
 
@@ -95,9 +93,84 @@ def test_build_gemini_prompt_uses_retrieved_fields_and_guardrails(
     assert "name=Strong Match" in prompt
     assert "artist=Test Artist" in prompt
     assert "retrieval_score=6.50" in prompt
-    assert "derived_vibe_tags=high_energy, positive, danceable" in prompt
     assert "energy closeness: 0.82 vs target 0.80 (+1.96)" in prompt
     assert "make only claims these inputs support" in prompt
+
+
+def test_hot_in_it_uses_the_same_five_scoring_fields_in_all_explanations(monkeypatch):
+    records = load_demo_records(DEFAULT_REAL_DATASET_PATH, limit=None)
+    retrieved = retrieve_tracks(PREDEFINED_CASES[2].query, records, k=1)[0]
+    candidate = FOLLOWUP_CANDIDATES["intense_dance"]
+    assert retrieved.track.track_name == "Hot in It"
+    assert len(retrieved.evidence) == 5
+
+    gemini_input = build_gemini_prompt(retrieved)
+    assert "genre=dance" in gemini_input
+    assert "electronic" not in gemini_input
+    assert all(line in gemini_input for line in retrieved.evidence)
+
+    def claude_response(url, headers, request):
+        payload = json.loads(request["messages"][0]["content"])
+        assert payload["track"] == {
+            "name": "Hot in It",
+            "artist": retrieved.track.artist_name,
+            "genre": "dance",
+            "retrieval_score": round(retrieved.score, 2),
+        }
+        assert payload["evidence"] == retrieved.evidence
+        assert payload["explanation"] == candidate
+        claims = [{
+            "claim": "your preference for high-energy, danceable electronic music",
+            "status": "unsupported",
+            "reason": "The listener requested dance.",
+        }]
+        return {
+            "stop_reason": "end_turn",
+            "content": [{"type": "text", "text": json.dumps({"claims": claims})}],
+        }
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(alternative_judges, "_post_json", claude_response)
+    output = review_gemini_response(
+        retrieved,
+        json.dumps({"explanation": candidate}),
+        lambda text: review_with_claude(text, retrieved),
+        judge_name="Claude",
+    )
+
+    assert output.fallback_reason == "Claude explanation failed grounding check"
+    assert all(line in output.explanation.explanation for line in retrieved.evidence)
+    assert "electronic" not in output.explanation.explanation
+
+
+def test_claude_rejects_review_that_invents_a_quote(monkeypatch, retrieval_result):
+    candidate = "This track aligns perfectly with your preferred acoustic genre."
+    claims = [{
+        "claim": "your favorite genre",
+        "status": "unsupported",
+        "reason": "The current request does not specify a favorite genre.",
+    }]
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(
+        alternative_judges,
+        "_post_json",
+        lambda *_: {
+            "stop_reason": "end_turn",
+            "content": [{"type": "text", "text": json.dumps({"claims": claims})}],
+        },
+    )
+
+    output = review_gemini_response(
+        retrieval_result,
+        json.dumps({"explanation": candidate}),
+        lambda text: review_with_claude(text, retrieval_result),
+        judge_name="Claude",
+    )
+
+    assert not output.used_llm
+    assert output.guardrail_report is None
+    assert output.fallback_reason == "Claude grounding check returned an invalid quote"
+    assert output.explanation == explain_recommendation(retrieval_result)
 
 
 def test_parse_gemini_explanation_accepts_plain_json():
@@ -457,9 +530,17 @@ def test_live_claude_review(monkeypatch, live_gemini_records):
     print_live_review("fresh_gemini_generation_claude_review", acoustic, retrieved, result)
     assert result.guardrail_report is not None, result.fallback_reason
 
-    # Replay saved explanations so the expected verdicts do not depend on generation.
+    # Replay the draft that a previous live review rejected for reading a
+    # genre-specific modifier as a claim about the entire recommendation.
+    exact_genre_match = (
+        "This track is a strong match because it aligns perfectly with your "
+        "preferred acoustic genre and features energy and acousticness levels "
+        "that closely mirror your target preferences."
+    )
     saved_cases = (
         (acoustic, BASELINE_CANDIDATES[acoustic.name][0], True),
+        (acoustic, exact_genre_match, True),
+        (acoustic, "This track matches all your preferences perfectly.", False),
         (dance, FOLLOWUP_CANDIDATES[dance.name], False),
     )
     for case, candidate, expected in saved_cases:

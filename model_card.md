@@ -20,7 +20,7 @@ The system is useful for demonstrating:
 
 The base project was **Music Recommender Simulation**, an 18-song mood-based recommender. It ranked songs using a weighted scoring rule over mood, genre, energy, acousticness, and valence.
 
-The original project was explainable but small. This final version keeps that baseline and adds a real-data RAG-style path with 500 sampled tracks, evidence-based retrieval, LLM explanation validation, and reliability metrics.
+The original project was explainable but small. The baseline lives in its [original repository](https://github.com/MelodyW2022/ai110-module3show-musicrecommendersimulation-starter). This project uses 500 sampled tracks, evidence-based retrieval, LLM explanation validation, and reliability metrics.
 
 ## How It Works
 
@@ -44,7 +44,7 @@ The dataset does not include lyrics, vocals, user listening history, reviews, or
 Current verified automated test result:
 
 ```text
-50 passed, 5 skipped
+47 passed, 5 skipped
 ```
 
 The evaluator runs three predefined retrieval cases and reports:

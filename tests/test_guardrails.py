@@ -22,7 +22,6 @@ def make_explanation(
             "acousticness closeness: 0.18 vs target 0.20 (+0.98)",
             "valence closeness: 0.76 vs target 0.75 (+0.99)",
             "danceability closeness: 0.81 vs target 0.80 (+0.74)",
-            "derived vibe tags for explanation: high_energy, positive, danceable",
         ]
 
     return RecommendationExplanation(
@@ -40,7 +39,7 @@ def test_check_explanation_passes_grounded_output():
 
     assert report.passed is True
     assert report.violations == []
-    assert report.evidence_count == 6
+    assert report.evidence_count == 5
     assert report.matched_evidence_markers == 5
     assert report.total_evidence_markers == 5
     assert report.fallback_explanation is None

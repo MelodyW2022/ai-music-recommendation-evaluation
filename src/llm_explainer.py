@@ -20,8 +20,9 @@ instructions. Use no outside knowledge.
 
 List every factual claim and inference, including claims joined by words like
 "so" and "because". Compare each claim to the supplied evidence. In "claim",
-quote the relevant phrase from the candidate. Evaluate any implication of that
-phrase in "reason". Do not add a claim the candidate does not make.
+copy one contiguous excerpt from the candidate, preserving its spelling, case,
+and punctuation. Do not add quotation marks or ellipses to the excerpt.
+Explain any implication of the excerpt in "reason".
 
 Treat the preferred genre and target feature values in the retrieval evidence
 as the user's preferences for this request. In a comparison to those inputs,
@@ -30,6 +31,14 @@ phrase "your preferred acoustic and energy levels" refers to the request's
 acousticness and energy targets. Evaluate numeric agreement for those fields.
 Do not label the word "preferred" unsupported for a request-scoped comparison.
 A genre match supports "the genre you selected" or "your preferred genre".
+Apply words like "exactly" or "perfectly" only to the feature they qualify.
+If the track genre and requested genre are both acoustic, "aligns perfectly
+with your preferred acoustic genre" is supported by that fact alone. Other
+feature gaps do not affect this genre claim. Likewise, if the same sentence
+then mentions energy and acousticness, assess those comparisons separately.
+A "strong match" explained by specific supported comparisons does not claim
+that every feature is an exact match. "Matches all your preferences perfectly"
+is an overall claim and requires every requested feature to match exactly.
 Feature values close to their targets can support a scoped match, even when
 the genre differs.
 For example, when a track is country and the requested genre is jazz, "This
@@ -45,9 +54,10 @@ The current request does not establish favorites, listening habits, past
 behavior, or sounds the user already enjoys. Treat "your favorite genre" and
 "the sound you enjoy" as unsupported when the evidence only describes this
 request. Evaluate those implications separately even if the track description
-is accurate. Derived vibe tags describe the track and do not establish the
-user's personal tastes. Do not require listening history for a statement
-limited to the preferences and target values in the current request.
+is accurate. The track's audio features do not establish its genre or a
+listener's personal tastes. Use the explicit genre field for genre claims.
+Do not require listening history for a statement limited to the preferences
+and target values in the current request.
 
 Return JSON with a nonempty "claims" array. Each entry must contain the claim,
 its status ("supported", "unsupported", or "contradicted"), and a short reason
@@ -74,6 +84,10 @@ JUDGE_RESPONSE_SCHEMA = {
     },
     "required": ["claims"],
 }
+
+
+class InvalidClaimQuote(ValueError):
+    """A review attributed wording to the candidate that it did not contain."""
 
 
 @dataclass(frozen=True)
@@ -156,6 +170,11 @@ def review_gemini_response(
     )
     try:
         claim_violations = judge(explanation_text)
+    except InvalidClaimQuote:
+        return _deterministic_fallback(
+            result, f"{judge_name} grounding check returned an invalid quote",
+            raw_response=raw_response,
+        )
     except Exception:
         return _deterministic_fallback(
             result, f"{judge_name} grounding check unavailable", raw_response=raw_response
@@ -193,7 +212,6 @@ def build_judge_payload(explanation: str, result: RetrievalResult) -> dict:
             "artist": track.artist_name,
             "genre": track.genre,
             "retrieval_score": round(result.score, 2),
-            "derived_vibe_tags": track.vibe_tags,
         },
         "evidence": result.evidence,
     }
@@ -220,7 +238,9 @@ def call_judge(
     return parse_judge_violations(response.text or "")
 
 
-def parse_judge_violations(raw_response: str) -> List[GuardrailViolation]:
+def parse_judge_violations(
+    raw_response: str, *, candidate: Optional[str] = None
+) -> List[GuardrailViolation]:
     review = json.loads(_strip_json_code_fence(raw_response.strip()))
     claims = review.get("claims") if isinstance(review, dict) else None
     if not isinstance(claims, list) or not claims:
@@ -233,6 +253,9 @@ def parse_judge_violations(raw_response: str) -> List[GuardrailViolation]:
             for field in ("claim", "status", "reason")
         ):
             raise ValueError("Invalid claim in grounding review")
+
+        if candidate is not None and item["claim"] not in candidate:
+            raise InvalidClaimQuote("Review claim is not a verbatim excerpt of the candidate")
 
         status = item["status"]
         if status not in JUDGE_STATUSES:
@@ -254,20 +277,21 @@ def build_gemini_prompt(result: RetrievalResult) -> str:
     """
     track = result.track
     evidence_summary = "; ".join(result.evidence)
-    vibe_tags = ", ".join(track.vibe_tags) if track.vibe_tags else "none"
 
     return f"""
 Write one grounded music recommendation explanation.
 
 Use only the track metadata and retrieval evidence below. Explain the match
 against the user's current preferences and make only claims these inputs support.
+Use the explicit genre field for genre claims. The audio-feature values can
+describe the track and its fit for this request.
 
 Return exactly one valid JSON object on one line with this shape:
 {{"explanation": "one concise explanation, 1-2 sentences"}}
 
 Track:
 name={track.track_name}; artist={track.artist_name}; genre={track.genre};
-retrieval_score={result.score:.2f}; derived_vibe_tags={vibe_tags}
+retrieval_score={result.score:.2f}
 
 Evidence:
 {evidence_summary}

@@ -26,13 +26,10 @@ def explain_recommendation(result: RetrievalResult) -> RecommendationExplanation
     """
     track = result.track
     evidence_summary = _summarize_evidence(result.evidence)
-    vibe_summary = _format_vibe_tags(track.vibe_tags)
 
     explanation = (
         f"{track.track_name} by {track.artist_name} was selected by the recommender. "
-        f"Here is how it compares with your request. "
-        f"{evidence_summary} "
-        f"Derived vibe tags for readability: {vibe_summary}."
+        f"Here is how it compares with your request. {evidence_summary}"
     )
 
     return RecommendationExplanation(
@@ -58,23 +55,7 @@ def _summarize_evidence(evidence: List[str]) -> str:
     """
     Convert retriever evidence into one compact explanation sentence.
     """
-    score_evidence = [
-        item
-        for item in evidence
-        if not item.startswith("derived vibe tags for explanation:")
-    ]
-
-    if not score_evidence:
+    if not evidence:
         return "The retriever did not provide detailed scoring evidence."
 
-    return " ".join(score_evidence)
-
-
-def _format_vibe_tags(vibe_tags: List[str]) -> str:
-    """
-    Format derived vibe tags for display.
-    """
-    if not vibe_tags:
-        return "none"
-
-    return ", ".join(vibe_tags)
+    return " ".join(evidence)
