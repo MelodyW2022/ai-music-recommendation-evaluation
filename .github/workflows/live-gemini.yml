@@ -2,6 +2,17 @@ name: Live Gemini grounding tests
 
 on:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Suite to run
+        type: choice
+        default: run-live-gemini
+        options:
+          - run-live-gemini
+          - run-live-gemini-followup
+          - run-claude-closeout
+          - run-judge-comparison
+          - run-groq-diagnostic
   pull_request:
     types: [labeled]
     branches: [main]
@@ -22,6 +33,8 @@ jobs:
       github.event.pull_request.head.ref == 'codex/gemini-grounding-judge')
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      LIVE_TEST_SUITE: ${{ inputs.suite || github.event.label.name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,11 +45,11 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
       - name: Run live Gemini tests
-        if: github.event.label.name != 'run-judge-comparison' && github.event.label.name != 'run-groq-diagnostic' && github.event.label.name != 'run-claude-closeout'
+        if: env.LIVE_TEST_SUITE != 'run-judge-comparison' && env.LIVE_TEST_SUITE != 'run-groq-diagnostic' && env.LIVE_TEST_SUITE != 'run-claude-closeout'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RUN_LIVE_GEMINI_TESTS: '1'
-          LIVE_GEMINI_MODE: ${{ github.event.label.name }}
+          LIVE_GEMINI_MODE: ${{ env.LIVE_TEST_SUITE }}
         run: |
           if [ -z "$GEMINI_API_KEY" ]; then
             echo "::error::Configure the GEMINI_API_KEY repository secret first."
@@ -58,14 +71,14 @@ jobs:
             -k 'live_gemini and generation_and_review'
           exit "$replay_status"
       - name: Compare Gemini, Claude, and Groq on saved candidates
-        if: github.event.label.name == 'run-judge-comparison' || github.event.label.name == 'run-groq-diagnostic'
+        if: env.LIVE_TEST_SUITE == 'run-judge-comparison' || env.LIVE_TEST_SUITE == 'run-groq-diagnostic'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           RUN_LIVE_GEMINI_TESTS: '1'
           RUN_LIVE_JUDGE_COMPARISON: '1'
-          JUDGE_COMPARISON_MODE: ${{ github.event.label.name }}
+          JUDGE_COMPARISON_MODE: ${{ env.LIVE_TEST_SUITE }}
         run: |
           for key in GEMINI_API_KEY ANTHROPIC_API_KEY GROQ_API_KEY; do
             if [ -z "${!key}" ]; then
@@ -75,10 +88,10 @@ jobs:
           done
           python -m pytest -q -s -rs tests/test_llm_explainer.py -k live_judge_comparison
       - name: Run offline regression suite
-        if: github.event.label.name == 'run-claude-closeout'
+        if: env.LIVE_TEST_SUITE == 'run-claude-closeout'
         run: python -m pytest -q
       - name: Verify live Gemini generation and Claude review
-        if: github.event.label.name == 'run-claude-closeout'
+        if: env.LIVE_TEST_SUITE == 'run-claude-closeout'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

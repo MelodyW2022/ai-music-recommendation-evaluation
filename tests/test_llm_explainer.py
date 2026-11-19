@@ -180,6 +180,7 @@ def test_explain_with_gemini_falls_back_on_unsupported_listening_history_claim(
     monkeypatch: pytest.MonkeyPatch,
     retrieval_result: RetrievalResult,
 ):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     genai = pytest.importorskip("google.genai")
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     raw_response = json.dumps({"explanation": LISTENING_HISTORY_CLAIM})
@@ -243,6 +244,7 @@ def live_gemini_records():
 def test_live_gemini_judge_rejects_listening_history_claim(
     monkeypatch, live_gemini_records
 ):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     live_gemini_result = retrieve_tracks(make_demo_query(), live_gemini_records, k=1)[0]
     # Inject only the generator output. The production judge makes a real API call.
     raw_response = json.dumps({"explanation": LISTENING_HISTORY_CLAIM})
@@ -480,6 +482,7 @@ def test_live_claude_review(monkeypatch, live_gemini_records):
 def test_explain_with_gemini_falls_back_if_judge_cannot_return_a_review(
     monkeypatch, retrieval_result, reply
 ):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     raw = '{"explanation": "This is pop."}'
     monkeypatch.setattr(

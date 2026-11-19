@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 862 385" width="862" height="385" role="img" aria-labelledby="title">
+  <title id="title">Live Gemini and Claude review · GitHub Actions excerpt</title>
+  <rect width="862" height="385" rx="12" fill="#0f172a"/>
+  <rect width="862" height="44" rx="12" fill="#1e293b"/>
+  <text x="22" y="28" fill="#f8fafc" font-family="sans-serif" font-size="15" font-weight="600">Live Gemini and Claude review · GitHub Actions excerpt</text>
+  <g font-family="monospace" font-size="15" xml:space="preserve">
+    <text x="22" y="70" fill="#e2e8f0">Fresh generation: 2002 - Acoustic</text>
+    <text x="22" y="91" fill="#e2e8f0">Candidate: This track is a great match because it aligns with your preference for</text>
+    <text x="22" y="112" fill="#e2e8f0">acoustic music and closely mirrors your target energy and acousticness levels.</text>
+    <text x="22" y="133" fill="#e2e8f0">Accepted: true</text>
+    <text x="22" y="154" fill="#e2e8f0"></text>
+    <text x="22" y="175" fill="#e2e8f0">Saved hard case: Hot in It</text>
+    <text x="22" y="196" fill="#e2e8f0">Candidate: Tiësto and Charli XCX&#x27;s &#x27;Hot in It&#x27; is a great match because it aligns</text>
+    <text x="22" y="217" fill="#e2e8f0">with your preference for high-energy, danceable electronic music that mirrors your</text>
+    <text x="22" y="238" fill="#e2e8f0">target valence and energy levels.</text>
+    <text x="22" y="259" fill="#e2e8f0">Accepted: false</text>
+    <text x="22" y="280" fill="#e2e8f0">Fallback reason: Claude explanation failed grounding check</text>
+    <text x="22" y="301" fill="#e2e8f0">Finding: electronic music — The request&#x27;s preferred genre is &#x27;dance&#x27;, and the</text>
+    <text x="22" y="322" fill="#e2e8f0">track&#x27;s genre is &#x27;dance&#x27;. &#x27;Electronic&#x27; appears only as a derived vibe tag, not as a</text>
+    <text x="22" y="343" fill="#e2e8f0">stated request preference, so it does not establish that the user prefers electronic</text>
+    <text x="22" y="364" fill="#e2e8f0">music.</text>
+  </g>
+</svg>
