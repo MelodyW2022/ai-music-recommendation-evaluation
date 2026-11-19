@@ -394,8 +394,18 @@ def test_live_judge_comparison(live_gemini_records):
     assert not failures, "\n".join(failures)
 
 
-@pytest.mark.parametrize("outcome", ["pass", "reject", "unavailable", "first_reject"])
-def test_claude_second_review(monkeypatch, retrieval_result, outcome):
+@pytest.mark.parametrize(
+    ("gemini_outcome", "claude_outcome"),
+    [
+        ("pass", "pass"),
+        ("pass", "reject"),
+        ("pass", "unavailable"),
+        ("reject", "pass"),
+        ("reject", "reject"),
+        ("unavailable", "pass"),
+    ],
+)
+def test_claude_second_review(monkeypatch, retrieval_result, gemini_outcome, claude_outcome):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     candidate = "This track matches your selected genre."
@@ -409,30 +419,30 @@ def test_claude_second_review(monkeypatch, retrieval_result, outcome):
 
     def gemini(text, retrieved, model):
         calls.append(("Gemini", text, retrieved))
-        return [violation] if outcome == "first_reject" else []
+        if gemini_outcome == "unavailable":
+            raise TimeoutError
+        return [violation] if gemini_outcome == "reject" else []
 
     def claude(text, retrieved):
         calls.append(("Claude", text, retrieved))
-        if outcome == "unavailable":
+        if claude_outcome == "unavailable":
             raise TimeoutError
-        return [violation] if outcome == "reject" else []
+        return [violation] if claude_outcome == "reject" else []
 
     monkeypatch.setattr(llm_explainer, "call_judge", gemini)
     monkeypatch.setattr(alternative_judges, "review_with_claude", claude)
     result = explain_with_gemini(retrieval_result)
 
-    reviewers = ["Gemini"] if outcome == "first_reject" else ["Gemini", "Claude"]
-    assert calls == [(reviewer, candidate, retrieval_result) for reviewer in reviewers]
-    assert result.used_llm == (outcome == "pass")
-    if outcome == "pass":
+    assert calls == [(reviewer, candidate, retrieval_result) for reviewer in ("Gemini", "Claude")]
+    assert result.used_llm == (claude_outcome == "pass")
+    if claude_outcome == "pass":
         assert result.explanation.explanation == candidate
     else:
         assert result.explanation == explain_recommendation(retrieval_result)
         assert result.fallback_reason == {
             "reject": "Claude explanation failed grounding check",
             "unavailable": "Claude grounding check unavailable",
-            "first_reject": "Gemini explanation failed grounding check",
-        }[outcome]
+        }[claude_outcome]
 
 
 def test_live_claude_second_review(monkeypatch, live_gemini_records):
@@ -474,7 +484,19 @@ def test_live_claude_second_review(monkeypatch, live_gemini_records):
         if not expected:
             assert result.fallback_reason == "Claude explanation failed grounding check"
             assert result.explanation == explain_recommendation(retrieved)
-    assert claude_calls == [accepted_candidate, rejected_candidate]
+    # Exercise an initial false rejection without relying on the live Gemini
+    # judge to misclassify a supported explanation.
+    monkeypatch.setattr(
+        llm_explainer,
+        "call_judge",
+        lambda *_: [GuardrailViolation("unsupported_claim", "Simulated rejection", "error")],
+    )
+    retrieved = retrieve_tracks(acoustic.query, live_gemini_records, k=1)[0]
+    result = explain_with_gemini(retrieved)
+    print_live_review("claude_after_initial_rejection", acoustic, retrieved, result)
+    assert result.used_llm, result.fallback_reason
+    assert result.explanation.explanation == accepted_candidate
+    assert claude_calls == [accepted_candidate, rejected_candidate, accepted_candidate]
 
 
 @pytest.mark.parametrize("reply", ["not JSON", '{"claims": []}', None])
