@@ -33,7 +33,16 @@ def _post_json(url: str, headers: dict, payload: dict) -> dict:
         with urlopen(req, timeout=45) as response:
             return json.load(response)
     except HTTPError as exc:
-        raise RuntimeError(f"{req.host} returned HTTP {exc.code}") from None
+        body = exc.read(2048).decode(errors="replace")
+        for name, value in headers.items():
+            if name in ("x-api-key", "Authorization"):
+                body = body.replace(value.removeprefix("Bearer "), "[REDACTED]")
+        try:
+            detail = json.loads(body)["error"]["message"]
+        except (ValueError, KeyError, TypeError):
+            detail = body if "<html" not in body.lower() else exc.headers.get("server", "")
+        detail = " ".join(str(detail).split())[:240]
+        raise RuntimeError(f"{req.host} returned HTTP {exc.code}: {detail}") from None
 
 
 def review_with_claude(
